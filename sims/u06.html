@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>把詞帶回家</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.93);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--moss:#8FB573;--rust:#C9644A;--blue:#6FA3D8;--gold:#D4A84B}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,.85fr) minmax(0,1.25fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+#read{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:6px}
+.sec p{font-size:12.5px;line-height:1.75}
+.sec p.dim{color:var(--sub)}
+.q{font-size:15px;font-weight:600;color:var(--rust)}
+.use{border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin-bottom:6px;background:rgba(255,255,255,.015)}
+.use .t{font-size:13px;line-height:1.6;margin-bottom:5px}
+.use .t i{font-style:normal;color:var(--sub);font-family:"JetBrains Mono",monospace;font-size:11px;margin-right:4px}
+.use.right{border-color:rgba(143,181,115,.6)} .use.wrong{border-color:rgba(201,100,74,.7)}
+.use .fb{font-size:12px;color:var(--sub);margin-top:4px;line-height:1.6}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{font-size:12px;min-height:28px;padding:2px 8px;border-radius:7px}
+.seg button.on{color:#16181D;font-weight:600}
+#diag{display:flex;flex-direction:column;gap:5px}
+#diag button{text-align:left;font-size:12.5px;line-height:1.5;padding:6px 9px}
+#diag button.ok{border-color:var(--moss);color:var(--moss)} #diag button.no{border-color:var(--rust);color:var(--rust)}
+#dmsg{font-size:12.5px;line-height:1.8;margin-top:6px}
+#dmsg b{color:var(--amber)}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+label.grow{flex:1 1 170px;min-width:150px}
+input[type=range]{flex:1;accent-color:var(--amber);height:28px;min-width:70px}
+output{font-family:"JetBrains Mono",monospace;color:var(--txt);min-width:38px}
+select,button{background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer}
+button:active{background:#262A31}
+button.pri{border-color:rgba(227,154,78,.6);color:var(--amber)}
+button:disabled{opacity:.4;cursor:default}
+.cap{position:absolute;left:10px;top:8px;right:10px;font-size:12px;color:var(--sub);pointer-events:none;line-height:1.6}
+.cap b{color:var(--amber);font-weight:600}
+.tag{position:absolute;right:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none}
+#app.portrait header span{display:none}
+#app.portrait #read b{font-size:13px}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 7px;font-size:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>把詞帶回家</h1><span>把詞從形上學的用法帶回日常的用法（§116）；回到粗糙的地面（§107）</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="綜觀圖：關鍵詞、各語言遊戲與用例的關聯；或摩擦力實驗的側視圖"></canvas>
+    <div class="cap" id="cap"></div><span class="tag" id="tag"></span></div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small id="l1">用例</small><b id="r1">—</b></div>
+      <div><small id="l2">已分類</small><b id="r2">—</b></div>
+      <div><small id="l3">和參考一致</small><b id="r3" style="color:var(--moss)">—</b></div>
+      <div><small id="l4">語言遊戲</small><b id="r4">—</b></div>
+    </div>
+    <div id="wordsPane">
+      <div class="sec"><h3>哲學味的問句</h3><p class="q" id="qText"></p><p class="dim" id="qWord"></p></div>
+      <div class="sec"><h3>步驟 1／2：這個詞在日常生活中怎麼用？把每個用例分到一個語言遊戲</h3><div id="uses"></div>
+        <button class="pri" id="bCheck">對照參考分類</button></div>
+      <div class="sec" id="diagSec"><h3>步驟 2／2：回頭看原問句，它把哪一種用法從情境裡抽走了？</h3><div id="diag"></div><div id="dmsg"></div></div>
+    </div>
+    <div id="fricPane" hidden>
+      <div class="sec"><h3>最大推進力與 μ 的關係（F＝μN，直線）</h3><canvas id="fchart" style="height:150px" aria-label="最大推進力對摩擦係數的直線圖"></canvas></div>
+      <div class="sec"><p id="fmsg"></p></div>
+      <div class="sec"><p class="dim">模型：平地、正向力 N＝mg（g＝9.8 m/s²）。腳往後蹬時，地面最多只能用 μN 的摩擦力把你往前推；想以加速度 a 起步需要 m·a。按「起步」，程式以每 1/60 秒一步積分 3 秒：實際推力＝min(m·a, μN)，速度與位移逐步累加。冰面（μ 很小）用《邏輯哲學論》回顧時的金與藍冷色直線畫，粗糙地面用本系列的暖色顆粒。</p></div>
+    </div>
+  </div>
+  <div id="ctrl" class="box">
+    <label>模式 <select id="mode"><option value="words">把詞帶回家</option><option value="fric">摩擦力實驗</option></select></label>
+    <label id="lQ">問句 <select id="qsel"></select></label>
+    <button id="bReset">重新分類</button>
+    <label class="grow fr" hidden>摩擦係數 μ <input id="mu" type="range" min="0" max="1" step="0.01" value="0.4"><output id="oMu">0.40</output></label>
+    <label class="grow fr" hidden>體重 m <input id="mass" type="range" min="30" max="100" step="1" value="60"><output id="oMass">60 kg</output></label>
+    <label class="grow fr" hidden>想要的加速度 a <input id="acc" type="range" min="0.5" max="4" step="0.1" value="1.5"><output id="oAcc">1.5</output></label>
+    <button class="pri fr" id="bGo" hidden>起步</button>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const C = { amber: "#E39A4E", clay: "#B9825A", moss: "#8FB573", rust: "#C9644A", blue: "#6FA3D8", gold: "#D4A84B", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D" };
+const GCOL = ["#E39A4E", "#B9825A", "#8FB573", "#CDA57E"];
+
+// ---------- 資料：5 個問句 × 關鍵詞的日常用例（本頁自編的生活例句）----------
+// g：參考分類（語言遊戲索引）；borrow：原問句借走的那一種用法；why：診斷
+const QS = [
+  { q: "時間是什麼？", w: "時間", ref: "§89 引奧古斯丁：沒人問我，我知道；要我解釋，我就不知道了。",
+    games: [{ s: "約定", n: "安排與約定" }, { s: "計時", n: "測量與計時" }, { s: "期限", n: "期限與催促" }, { s: "回顧", n: "回顧與慰問" }],
+    uses: [
+      { t: "明天下午約個時間喝咖啡？", g: 0 },
+      { t: "你現在有時間嗎？幫我看一下這份報告。", g: 0 },
+      { t: "他跑出 2 小時 10 分的時間，破了大會紀錄。", g: 1 },
+      { t: "微波爐時間設 90 秒。", g: 1 },
+      { t: "時間到了，請停筆收卷。", g: 2 },
+      { t: "這段時間辛苦大家了。", g: 3 }
+    ],
+    borrow: 1,
+    why: "原問句最常借走的是「測量」的用法：我們說時間有長短、能量、能比較，於是想像有一種「東西」在流動、被量。奧古斯丁的困惑正是：過去已經不在、未來還沒來、現在沒有長度，那我們量的是什麼？可是在實際的計時遊戲裡，有碼錶、有起點終點、有成績要記錄；把這些全抽掉，只剩「它到底是什麼東西」的句型，詞就空轉了（§38）。",
+    other: ["約定的用法裡，「時間」是行程上的一格，沒人會問那一格的本質。", "", "期限的用法是在催促、宣告結束，本來就不是在描述一個對象。", "回顧與慰問是在表達感謝，不需要時間是什麼東西。"] },
+  { q: "我怎麼知道別人也有心靈？", w: "知道", ref: "第 8 集會再回到這個問題（私有語言、盒子裡的甲蟲）。",
+    games: [{ s: "看表現", n: "根據表情與行為判斷" }, { s: "聽來源", n: "根據消息與證詞" }, { s: "會做", n: "會做的本事" }, { s: "安撫", n: "保證與不耐煩" }],
+    uses: [
+      { t: "我知道他在生氣，你看他摔門的樣子。", g: 0 },
+      { t: "她一直揉肚子，我知道她不舒服。", g: 0 },
+      { t: "我知道明天停班停課，新聞剛公布。", g: 1 },
+      { t: "我知道怎麼騎腳踏車。", g: 2 },
+      { t: "放心，我知道路，跟我走就對了。", g: 2 },
+      { t: "我知道啦！不用再提醒我了。", g: 3 }
+    ],
+    borrow: 0,
+    why: "原問句借走的是「看表現」的用法，卻把它的判準拿掉了。日常說「我知道他在痛」，靠的就是他揉肚子、皺眉、說哪裡痛；這些不是次等的證據，正是這個語言遊戲的判準。哲學問句要求的是另一種「知道」：直接看進別人心裡，像打開盒子看。可是沒有任何一個日常遊戲是這樣玩的，於是問題永遠答不了。",
+    other: ["", "證詞的用法有明確的來源可查，和「看進別人心裡」無關。", "會做的本事是「知道怎麼做」，不是知道某件事是否為真。", "這只是不耐煩的回應，沒有在宣稱任何知識。"] },
+  { q: "數字存在嗎？", w: "存在", ref: "§116 列的詞裡就有「存在（Sein）」。",
+    games: [{ s: "找得到", n: "在世界上找得到" }, { s: "查紀錄", n: "在系統紀錄裡有沒有" }, { s: "證明", n: "數學裡的存在證明" }],
+    uses: [
+      { t: "深海裡真的存在這種會發光的魚嗎？", g: 0 },
+      { t: "獨角獸並不存在。", g: 0 },
+      { t: "查無此帳號：該使用者不存在。", g: 1 },
+      { t: "這筆訂單編號不存在，請再確認。", g: 1 },
+      { t: "x² ＝ 2 在有理數裡沒有解，在實數裡存在解。", g: 2 },
+      { t: "大於 100 的質數存在嗎？當然，101 就是。", g: 2 }
+    ],
+    borrow: 0,
+    why: "原問句借走的是「在世界上找得到」的用法：像問深海魚存不存在，好像可以派探險隊去找找看數字在哪裡。可是那個遊戲的配備（去哪裡找、找到長什麼樣）一搬到數字身上就全部失效。數字的「存在」在數學裡有老家：在某個系統裡證明「有一個數滿足條件」。在那裡，這個詞用得清清楚楚。",
+    other: ["", "系統紀錄的「不存在」是查詢結果，和形上學的問法無關。", "數學證明裡的「存在」恰恰是數字的老家，原問句反而離開了它。"] },
+  { q: "「我」到底是什麼？", w: "我", ref: "§116 列的詞裡就有「我（Ich）」。",
+    games: [{ s: "喊感受", n: "表達感受" }, { s: "攬下", n: "自告奮勇" }, { s: "指認", n: "指認與介紹" }, { s: "歸屬", n: "說明歸屬" }],
+    uses: [
+      { t: "哎呀，我好痛！", g: 0 },
+      { t: "我好緊張，手都在抖。", g: 0 },
+      { t: "這箱我來搬！", g: 1 },
+      { t: "照片最左邊那個是我。", g: 2 },
+      { t: "您好，我是王小明，今天的值日生。", g: 2 },
+      { t: "這把傘是我的。", g: 3 }
+    ],
+    borrow: 2,
+    why: "原問句借走的是「指認」的用法：「照片最左邊那個是我」裡，「我」確實在挑出一個對象。哲學問句把這種指認搬到「我好痛」這類用法上，追問那個被指著的內在對象是什麼。可是喊痛的時候，我並沒有先認出某個人、再報告他在痛；那是取代哭喊的表達（第 8 集再談）。把指認的句型套進去，就生出一個找不到的「我」。",
+    other: ["喊感受不是在指出某個對象，而是表達本身。", "自告奮勇是在承擔行動，不在描述一個東西。", "", "歸屬說的是所有關係，沒人會因此問「我」的本質。"] },
+  { q: "真理到底是什麼？", w: "真的", ref: "§97 列的「超概念」裡就有「真」。",
+    games: [{ s: "查證", n: "查證說法是否屬實" }, { s: "辨真假貨", n: "辨別真品與仿冒" }, { s: "加強", n: "加強語氣" }, { s: "驚呼", n: "驚訝的回應" }],
+    uses: [
+      { t: "新聞說颱風轉向了，是真的嗎？", g: 0 },
+      { t: "他說的都是真的，我有對話截圖。", g: 0 },
+      { t: "這塊玉是真的還是染色的？", g: 1 },
+      { t: "這碗牛肉麵真好吃！", g: 2 },
+      { t: "真的假的？你中了千萬發票？", g: 3 },
+      { t: "真的嗎？太好了！", g: 3 }
+    ],
+    borrow: 0,
+    why: "原問句借走的是「查證」的用法：日常說「是真的嗎？」時，手邊總有一則特定的說法，也有查證的方法（看截圖、查氣象局）。「真理是什麼？」把那則說法和查證方法一起拿掉，只剩下「真」這個字，要求它自己交代本質。§97 提醒：如果「真」這類詞有用法，那用法也必須像「桌子」「燈」「門」一樣樸素。",
+    other: ["", "辨別真假貨有鑑定方法與比較的標準，是另一個遊戲。", "加強語氣的「真」不在判斷任何說法。", "驚呼的「真的假的」是情緒反應，不是在問真理。"] }
+];
+
+// ---------- 狀態 ----------
+let mode = "words", qi = 0, assign = [], checked = false, diagPick = null;
+const app = $("app"), cv = $("cv"), g = cv.getContext("2d"), fc = $("fchart"), fx = fc.getContext("2d");
+function fit(c) {
+  const r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  c.width = Math.max(1, r.width * dpr | 0); c.height = Math.max(1, r.height * dpr | 0);
+  c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0); return { w: r.width, h: r.height };
+}
+let SW = 0, SH = 0, FW = 0, FH = 0;
+function layout() {
+  app.classList.toggle("portrait", innerHeight > innerWidth * 1.05);
+  ({ w: SW, h: SH } = fit(cv)); if (mode === "fric") ({ w: FW, h: FH } = fit(fc));
+  drawAll();
+}
+
+// ---------- 把詞帶回家 ----------
+function loadQ(i) {
+  qi = i; const Q = QS[qi];
+  assign = Q.uses.map(() => -1); checked = false; diagPick = null;
+  $("qText").textContent = Q.q;
+  $("qWord").textContent = `關鍵詞：「${Q.w}」　${Q.ref}`;
+  renderUses(); renderDiag(); drawAll();
+}
+function score() {
+  const Q = QS[qi]; let done = 0, right = 0; const tally = Q.games.map(() => 0);
+  assign.forEach((a, k) => { if (a >= 0) { done++; tally[a]++; if (a === Q.uses[k].g) right++; } });
+  return { done, right, tally };
+}
+function renderUses() {
+  const Q = QS[qi];
+  $("uses").innerHTML = Q.uses.map((u, k) => {
+    const a = assign[k], st = checked && a >= 0 ? (a === u.g ? " right" : " wrong") : "";
+    const fb = checked && a >= 0 && a !== u.g ? `<div class="fb">參考分類：${Q.games[u.g].n}。分法不只一種，若你有理由，也可以不同；重點是看出它們屬於不同的遊戲。</div>` : "";
+    return `<div class="use${st}"><div class="t"><i>${k + 1}</i>${u.t}</div><div class="seg">${Q.games.map((G, j) =>
+      `<button data-k="${k}" data-j="${j}" class="${a === j ? "on" : ""}" style="${a === j ? `background:${GCOL[j]};border-color:${GCOL[j]}` : `border-color:${GCOL[j]}66;color:${GCOL[j]}`}">${G.s}</button>`).join("")}</div>${fb}</div>`;
+  }).join("");
+  const s = score();
+  $("bCheck").disabled = s.done < Q.uses.length;
+}
+function renderDiag() {
+  const Q = QS[qi], s = score(), ready = checked;
+  $("diagSec").style.opacity = ready ? 1 : .45;
+  $("diag").innerHTML = Q.games.map((G, j) => {
+    const cls = diagPick === null ? "" : j === Q.borrow ? "ok" : j === diagPick ? "no" : "";
+    return `<button data-d="${j}" class="${cls}" ${ready ? "" : "disabled"}>${G.n}（${s.tally[j]} 個用例）</button>`;
+  }).join("");
+  if (!ready) { $("dmsg").innerHTML = "先把全部用例分好，按「對照參考分類」，這一步才會打開。"; return; }
+  if (diagPick === null) { $("dmsg").innerHTML = `原問句「<b>${Q.q}</b>」沒有任何情境：沒有人在約時間、沒有碼錶、沒有截圖。它像是從上面哪一個遊戲裡，把詞連根拔出來的？`; return; }
+  $("dmsg").innerHTML = (diagPick === Q.borrow ? "對。" : `<span style="color:var(--rust)">${Q.other[diagPick] || "這個說法也有道理，"}</span><br>參考答案是「${Q.games[Q.borrow].n}」。`) + "<br>" + Q.why;
+}
+$("uses").addEventListener("click", e => {
+  const b = e.target.closest("[data-k]"); if (!b) return;
+  const k = +b.dataset.k, j = +b.dataset.j;
+  assign[k] = assign[k] === j ? -1 : j; if (checked) checked = assign.every(a => a >= 0);
+  renderUses(); renderDiag(); drawAll();
+});
+$("diag").addEventListener("click", e => { const b = e.target.closest("[data-d]"); if (!b || !checked) return; diagPick = +b.dataset.d; renderDiag(); drawAll(); });
+$("bCheck").onclick = () => { checked = true; renderUses(); renderDiag(); drawAll(); };
+$("bReset").onclick = () => loadQ(qi);
+
+function wrapText(text, x, y, maxW, lh, maxLines) {
+  let line = "", lines = [];
+  for (const ch of text) { if (g.measureText(line + ch).width > maxW && line) { lines.push(line); line = ch; } else line += ch; }
+  if (line) lines.push(line);
+  if (maxLines && lines.length > maxLines) { lines = lines.slice(0, maxLines); lines[maxLines - 1] = lines[maxLines - 1].slice(0, -1) + "…"; }
+  lines.forEach((l, i) => g.fillText(l, x, y + i * lh)); return lines.length;
+}
+function drawWords() {
+  const Q = QS[qi], s = score();
+  $("cap").innerHTML = `綜觀圖（§122）：中間是關鍵詞「<b>${Q.w}</b>」，四周是它在日常生活裡住的幾個「家」。`;
+  $("tag").textContent = "鏽紅虛框＝抽離情境的哲學問句";
+  const top = $("cap").offsetHeight + 8, cx0 = SW / 2, cy0 = top + (SH - top) * .56;
+  const R = Math.min(SW * .36, (SH - top) * .36), nG = Q.games.length;
+  const gp = Q.games.map((_, j) => { const a = -Math.PI / 2 + (j + .5) * 2 * Math.PI / nG; return [cx0 + R * Math.cos(a) * 1.08, cy0 + R * Math.sin(a) * .9]; });
+  // 用例點：連到所屬遊戲
+  const fs = Math.max(11, Math.min(14, SW / 34));
+  gp.forEach(([x, y], j) => {
+    g.strokeStyle = GCOL[j]; g.globalAlpha = .55; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx0, cy0); g.lineTo(x, y); g.stroke(); g.globalAlpha = 1;
+    const ks = assign.map((a, k) => a === j ? k : -1).filter(k => k >= 0);
+    ks.forEach((k, i) => {
+      // 用例點排成一列，放在遊戲標籤外側（遠離中心的那一邊）
+      const ux = x + (i - (ks.length - 1) / 2) * 24, uy = y + (y >= cy0 ? 1 : -1) * (fs * .8 + 18);
+      g.strokeStyle = GCOL[j]; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(ux, uy); g.stroke();
+      const wrong = checked && Q.uses[k].g !== j;
+      g.fillStyle = "#16181D"; g.beginPath(); g.arc(ux, uy, 10, 0, 7); g.fill();
+      g.strokeStyle = wrong ? C.rust : GCOL[j]; g.lineWidth = 1.6; g.stroke();
+      g.fillStyle = C.txt; g.font = "600 11px 'JetBrains Mono',monospace"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(k + 1, ux, uy + .5);
+    });
+    g.font = `600 ${fs}px 'Noto Serif TC',serif`; const tw = g.measureText(Q.games[j].n).width;
+    g.fillStyle = "rgba(22,24,29,.92)"; g.fillRect(x - tw / 2 - 6, y - fs * .8, tw + 12, fs * 1.6);
+    g.strokeStyle = GCOL[j]; g.lineWidth = j === diagPick || (diagPick !== null && j === Q.borrow) ? 2.2 : 1; g.strokeRect(x - tw / 2 - 6, y - fs * .8, tw + 12, fs * 1.6);
+    g.fillStyle = GCOL[j]; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(Q.games[j].n, x, y + 1);
+  });
+  // 中心關鍵詞（暖色、粗糙地面）
+  g.font = `600 ${fs + 6}px 'Noto Serif TC',serif`; const kw = g.measureText(Q.w).width + 22;
+  g.fillStyle = "rgba(185,130,90,.25)"; g.fillRect(cx0 - kw / 2, cy0 - fs, kw, fs * 2);
+  g.strokeStyle = C.clay; g.lineWidth = 1.5; g.strokeRect(cx0 - kw / 2, cy0 - fs, kw, fs * 2);
+  g.fillStyle = C.txt; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(Q.w, cx0, cy0 + 1);
+  // 抽離情境的哲學問句：浮在上方，鏽紅虛框
+  g.font = `600 ${fs + 1}px 'Noto Serif TC',serif`; const qw = Math.min(SW - 24, g.measureText(Q.q).width + 20), qx = SW / 2, qy = top + 14;
+  g.setLineDash([5, 4]); g.strokeStyle = C.rust; g.lineWidth = 1.5; g.strokeRect(qx - qw / 2, qy - fs * .85, qw, fs * 1.7); g.setLineDash([]);
+  g.fillStyle = C.rust; g.fillText(Q.q, qx, qy + 1);
+  if (diagPick !== null) {
+    const [bx, by] = gp[Q.borrow];
+    g.setLineDash([6, 5]); g.strokeStyle = C.rust; g.lineWidth = 1.8; g.beginPath(); g.moveTo(qx, qy + fs * .85); g.quadraticCurveTo((qx + bx) / 2 + 30, (qy + by) / 2, bx, by - fs * .8); g.stroke(); g.setLineDash([]);
+    g.font = "12px 'Noto Serif TC',serif"; g.fillStyle = C.rust; g.fillText("把這個用法連根拔起", (qx + bx) / 2 + 30, (qy + by) / 2 - 8);
+  }
+  // 未分類的用例
+  const un = assign.map((a, k) => a < 0 ? k + 1 : 0).filter(Boolean);
+  if (un.length) { g.font = "12px 'Noto Serif TC',serif"; g.fillStyle = C.sub; g.textAlign = "left"; g.textBaseline = "alphabetic"; g.fillText("尚未分類：" + un.join("、"), 10, SH - 8); }
+  $("l1").textContent = "用例"; $("r1").textContent = Q.uses.length;
+  $("l2").textContent = "已分類"; $("r2").textContent = s.done + "／" + Q.uses.length;
+  $("r3").style.color = C.moss; $("l3").textContent = "和參考一致"; $("r3").textContent = checked ? s.right + "／" + Q.uses.length : "—";
+  $("l4").textContent = "語言遊戲"; $("r4").textContent = Q.games.length;
+}
+
+// ---------- 摩擦力實驗 ----------
+const GRAV = 9.8;
+let sim = null;   // { t, x, v, slipping } 進行中的模擬
+const P = () => ({ mu: +$("mu").value, m: +$("mass").value, a: +$("acc").value });
+function physics() {
+  const { mu, m, a } = P(), N = m * GRAV, Fmax = mu * N, need = m * a;
+  return { mu, m, a, N, Fmax, need, can: Fmax >= need - 1e-9, aReal: Math.min(need, Fmax) / m };
+}
+// 固定種子的亂數：粗糙地面的顆粒每次一樣
+function rng(seed) { let s = seed >>> 0; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+function drawFric() {
+  const ph = physics();
+  $("cap").innerHTML = `μ＝<b>${ph.mu.toFixed(2)}</b>：地面最多推你 <b>${ph.Fmax.toFixed(1)} N</b>；以 ${ph.a.toFixed(1)} m/s² 起步需要 ${ph.need.toFixed(1)} N。`;
+  $("tag").textContent = ph.mu < 0.15 ? "光滑冰面：前期的水晶理想（金藍冷色）" : "粗糙地面：本系列（暖色顆粒）";
+  const top = $("cap").offsetHeight + 10, gy = top + (SH - top) * .7;
+  // 地面：μ 越小越像冰（藍金細直線），越大越粗糙（暖色顆粒）
+  const ice = Math.max(0, 1 - ph.mu / 0.3);
+  g.fillStyle = `rgba(111,163,216,${0.10 + 0.18 * ice})`; g.fillRect(0, gy, SW, SH - gy);
+  if (ice > 0) {
+    g.globalAlpha = ice;
+    g.strokeStyle = C.blue; g.lineWidth = 1; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(0, gy + 6 + k * 9); g.lineTo(SW, gy + 6 + k * 9); g.stroke(); }
+    g.strokeStyle = C.gold; g.lineWidth = 1.2; for (let x = -SH; x < SW; x += 46) { g.beginPath(); g.moveTo(x, SH); g.lineTo(x + (SH - gy), gy); g.stroke(); }
+    g.globalAlpha = 1;
+  }
+  const grains = Math.round(ph.mu * 900), r = rng(7);
+  for (let k = 0; k < grains; k++) {
+    const x = r() * SW, y = gy + Math.pow(r(), 1.6) * (SH - gy), s = .6 + r() * 1.8 * (0.4 + ph.mu);
+    g.fillStyle = r() < .5 ? "rgba(185,130,90,.8)" : "rgba(227,154,78,.65)"; g.fillRect(x, y, s, s);
+  }
+  g.strokeStyle = ph.mu < 0.15 ? C.blue : C.clay; g.lineWidth = 2; g.beginPath(); g.moveTo(0, gy); g.lineTo(SW, gy); g.stroke();
+  // 人（簡單側影）與位移
+  const scale = (SW - 90) / 8;    // 3 秒最多約 8 公尺入畫
+  const x = 40 + (sim ? Math.min(sim.x, 8) : 0) * scale, h = Math.min(170, (gy - top) * .75);
+  const t = sim ? sim.t : 0, swing = sim && !sim.slip ? Math.sin(t * 9) * .5 : 0, slipLeg = sim && sim.slip ? Math.sin(t * 22) * .8 : 0;
+  g.strokeStyle = C.txt; g.lineWidth = 3; g.lineCap = "round";
+  const hip = [x, gy - h * .45], head = [x + 4, gy - h * .95];
+  g.beginPath(); g.arc(head[0], head[1], h * .09, 0, 7); g.stroke();
+  g.beginPath(); g.moveTo(head[0] - 1, head[1] + h * .09); g.lineTo(hip[0], hip[1]); g.stroke();
+  [swing + slipLeg, -swing - slipLeg].forEach(a => { g.beginPath(); g.moveTo(hip[0], hip[1]); g.lineTo(hip[0] + Math.sin(a) * h * .45, gy); g.stroke(); });
+  g.beginPath(); g.moveTo(x + 2, gy - h * .75); g.lineTo(x + 2 + Math.sin(-swing) * h * .3, gy - h * .45); g.stroke();
+  // 力的箭頭：琥珀＝地面能給的最大推力；虛線＝需要的推力
+  const fScale = Math.min(140, SW * .35) / Math.max(ph.need, ph.Fmax, 1);
+  const ay = gy - 8;
+  const arrow = (len, col, dash, label, yy) => {
+    g.setLineDash(dash); g.strokeStyle = col; g.lineWidth = 3; g.beginPath(); g.moveTo(x, yy); g.lineTo(x + len, yy); g.stroke(); g.setLineDash([]);
+    if (len > 4) { g.fillStyle = col; g.beginPath(); g.moveTo(x + len + 7, yy); g.lineTo(x + len - 2, yy - 5); g.lineTo(x + len - 2, yy + 5); g.fill(); }
+    g.font = "12px 'Noto Serif TC',serif"; g.fillStyle = col; g.textAlign = "left"; g.textBaseline = "bottom"; g.fillText(label, x + 6, yy - 4);
+  };
+  arrow(ph.need * fScale, C.sub, [5, 4], `需要 ${ph.need.toFixed(0)} N`, ay - 30);
+  arrow(ph.Fmax * fScale, C.amber, [], `地面最多給 ${ph.Fmax.toFixed(0)} N`, ay - 6);
+  if (sim) {
+    g.font = "600 13px 'JetBrains Mono',monospace"; g.fillStyle = C.txt; g.textAlign = "right"; g.textBaseline = "top";
+    g.fillText(`t=${sim.t.toFixed(2)} s  v=${sim.v.toFixed(2)} m/s  x=${sim.x.toFixed(2)} m`, SW - 10, top);
+    if (sim.slip) { g.fillStyle = C.rust; g.fillText(ph.Fmax === 0 ? "腳底打滑，原地踏步" : "推力不足，腳底打滑", SW - 10, top + 18); }
+  }
+  // 側欄
+  $("l1").textContent = "正向力 N"; $("r1").textContent = ph.N.toFixed(0) + " N";
+  $("l2").textContent = "最大推力 μN"; $("r2").textContent = ph.Fmax.toFixed(1);
+  $("l3").textContent = "能否起步"; $("r3").textContent = ph.can ? "可以" : "不行"; $("r3").style.color = ph.can ? C.moss : C.rust;
+  $("l4").textContent = "最小 μ＝a/g"; $("r4").textContent = (ph.a / GRAV).toFixed(3);
+  const d3 = 0.5 * ph.aReal * 9;
+  $("fmsg").innerHTML = ph.mu === 0
+    ? `μ＝0：不管多用力蹬，地面都推不動你，最大推力 <b style="color:var(--rust)">0 N</b>。§107：條件理想，卻正因如此不能走路。`
+    : ph.can ? `μ＝${ph.mu.toFixed(2)}：地面最多給 ${ph.Fmax.toFixed(1)} N ≥ 需要的 ${ph.need.toFixed(1)} N，可以照想要的加速度起步；3 秒可走 ${d3.toFixed(2)} 公尺。`
+    : `μ＝${ph.mu.toFixed(2)}：地面最多只給 ${ph.Fmax.toFixed(1)} N，少於需要的 ${ph.need.toFixed(1)} N，腳會打滑；只能以 ${ph.aReal.toFixed(2)} m/s² 慢慢挪，3 秒約 ${d3.toFixed(2)} 公尺。至少要 μ ≥ ${(ph.a / GRAV).toFixed(3)}。`;
+  drawFChart(ph);
+}
+function drawFChart(ph) {
+  if (!FW) return;
+  fx.clearRect(0, 0, FW, FH);
+  const L = 40, B = FH - 18, T = 8, R = FW - 10, Fm = ph.N;   // μ=1 時最大推力 = N
+  const X = mu => L + (R - L) * mu, Y = F => B - (B - T) * F / Fm;
+  fx.font = "10px 'JetBrains Mono',monospace"; fx.fillStyle = C.sub; fx.textAlign = "center"; fx.textBaseline = "alphabetic";
+  for (let k = 0; k <= 10; k += 2) fx.fillText((k / 10).toFixed(1), X(k / 10), FH - 4);
+  fx.textAlign = "right"; fx.textBaseline = "middle";
+  [0, .5, 1].forEach(f => { fx.fillText((Fm * f).toFixed(0), L - 4, Y(Fm * f)); fx.strokeStyle = "rgba(237,230,214,.06)"; fx.beginPath(); fx.moveTo(L, Y(Fm * f)); fx.lineTo(R, Y(Fm * f)); fx.stroke(); });
+  // 需要的推力（水平虛線）
+  if (ph.need <= Fm) { fx.setLineDash([5, 4]); fx.strokeStyle = C.sub; fx.beginPath(); fx.moveTo(L, Y(ph.need)); fx.lineTo(R, Y(ph.need)); fx.stroke(); fx.setLineDash([]); }
+  // F = μN：取 101 個 μ 實際計算
+  fx.strokeStyle = C.amber; fx.lineWidth = 2; fx.beginPath();
+  for (let k = 0; k <= 100; k++) { const mu = k / 100, F = mu * ph.N; k ? fx.lineTo(X(mu), Y(F)) : fx.moveTo(X(mu), Y(F)); } fx.stroke();
+  fx.fillStyle = ph.can ? C.moss : C.rust; fx.beginPath(); fx.arc(X(ph.mu), Y(ph.Fmax), 5, 0, 7); fx.fill();
+  const muMin = ph.a / GRAV;
+  if (muMin <= 1) { fx.strokeStyle = C.moss; fx.lineWidth = 1; fx.beginPath(); fx.moveTo(X(muMin), B); fx.lineTo(X(muMin), Y(ph.need)); fx.stroke(); }
+}
+function go() {
+  const ph = physics(); sim = { t: 0, x: 0, v: 0, slip: !ph.can };
+  const dt = 1 / 60; let last = performance.now();
+  const step = now => {
+    if (!sim) return;
+    let acc = (now - last) / 1000; last = now;
+    while (acc > 0 && sim.t < 3) { sim.v += ph.aReal * dt; sim.x += sim.v * dt; sim.t += dt; acc -= dt; }
+    drawAll();
+    if (sim.t < 3) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// ---------- 總繪製與控制 ----------
+function drawAll() { if (!SW) return; g.clearRect(0, 0, SW, SH); mode === "words" ? drawWords() : drawFric(); }
+$("qsel").innerHTML = QS.map((Q, i) => `<option value="${i}">${Q.q}</option>`).join("");
+$("qsel").onchange = e => loadQ(+e.target.value);
+$("mode").onchange = e => {
+  mode = e.target.value; const w = mode === "words";
+  $("wordsPane").hidden = !w; $("fricPane").hidden = w; $("lQ").hidden = !w; $("bReset").hidden = !w;
+  document.querySelectorAll(".fr").forEach(el => el.hidden = w);
+  sim = null; $("r3").style.color = ""; layout();
+};
+[["mu", "oMu", v => (+v).toFixed(2)], ["mass", "oMass", v => v + " kg"], ["acc", "oAcc", v => (+v).toFixed(1)]].forEach(([id, out, f]) =>
+  $(id).oninput = e => { $(out).textContent = f(e.target.value); sim = null; drawAll(); });
+$("bGo").onclick = go;
+loadQ(0);
+new ResizeObserver(layout).observe(document.body);
+})();
+</script>
+</body>
+</html>

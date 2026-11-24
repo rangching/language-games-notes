@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生平地圖時間軸</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--blue:#6FA3D8;--moss:#8FB573;--rust:#C9644A}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1.25fr) minmax(0,1fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+#now{padding:10px 12px;border-bottom:1px solid var(--line)}
+#now .yr{font-family:"JetBrains Mono",monospace;font-size:26px;font-weight:600;color:var(--amber);line-height:1.1}
+#now .yr small{font-size:13px;color:var(--sub);font-weight:400;margin-left:8px}
+#now .pl{font-size:15px;margin-top:6px}
+#now .pl i{font-style:normal;color:var(--sub);font-size:12px;margin-left:6px}
+#now .ev{font-size:14px;font-weight:600;margin-top:6px;color:var(--txt)}
+#now .nt{font-size:13px;line-height:1.7;color:#D8D1C1;margin-top:4px}
+#now .rf{font-size:11px;color:var(--sub);margin-top:4px}
+#read{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:8px 12px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:15px;color:var(--txt);font-weight:600;white-space:nowrap}
+#list{list-style:none;padding:4px 0}
+#list li{display:grid;grid-template-columns:86px 1fr;gap:6px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--sub);border-left:3px solid transparent}
+#list li .d{font-family:"JetBrains Mono",monospace;font-size:11px}
+#list li.past{color:#CFC8B8}
+#list li.cur{color:var(--txt);background:rgba(227,154,78,.12);border-left-color:var(--amber)}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+label.grow{flex:1 1 260px;min-width:180px}
+input[type=range]{flex:1;accent-color:var(--amber);height:32px;min-width:80px}
+select,button{background:#1E2128;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:34px;cursor:pointer}
+button:active{background:#262A31}
+#bPlay{min-width:72px;color:var(--amber);border-color:rgba(227,154,78,.6)}
+.tag{position:absolute;left:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none;line-height:1.5;max-width:70%}
+#app.portrait header span{display:none}
+#app.portrait #now .yr{font-size:20px}
+#app.portrait #now .nt{font-size:12px}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait label.grow{flex:1 1 100%}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>生平地圖時間軸</h1><span>1889–1951：維根斯坦在哪裡、做什麼（真實地理資料以程式繪製）</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="歐洲地圖：依年代點亮維根斯坦待過的地點與移動路線；點地點可跳到該段年代"></canvas>
+    <span class="tag">國界為現今國界（Natural Earth 1:50m），1920 年代國界不同。<br>投影：Lambert 方位等積，中心 52°N, 5°E；路線為大圓。點地點可跳到那段年代。</span></div>
+  <div id="side" class="box">
+    <div id="now">
+      <div class="yr" id="nYr">1889</div>
+      <div class="pl" id="nPl"></div>
+      <div class="ev" id="nEv"></div>
+      <div class="nt" id="nNt"></div>
+      <div class="rf" id="nRf"></div>
+    </div>
+    <div id="read">
+      <div><small>年齡</small><b id="rAge">—</b></div>
+      <div><small>已到過的地點</small><b id="rPl">—</b></div>
+      <div><small>累計移動（大圓）</small><b id="rKm">—</b></div>
+    </div>
+    <ul id="list"></ul>
+  </div>
+  <div id="ctrl" class="box">
+    <button id="bPlay">▶ 播放</button>
+    <label class="grow">年代 <input id="sl" type="range" min="0" max="744" step="1" value="0" aria-label="時間軸，1889 年 4 月到 1951 年 4 月"></label>
+    <label>速度 <select id="spd"><option value="0.5">慢</option><option value="1" selected>中</option><option value="2.5">快</option></select></label>
+  </div>
+</div>
+<script src="../data/geo_europe.js"></script>
+<script src="../data/bio_places.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const G = window.GEO_EUROPE, B = window.BIO;
+const C = { amber: "#E39A4E", clay: "#B9825A", blue: "#6FA3D8", txt: "#EDE6D6", sub: "#9C978B", land: "#1E2128", land2: "#262A33", border: "#4A505C", coast: "#5A616E" };
+const D2R = Math.PI / 180, R_EARTH = 6371;
+const app = $("app"), cv = $("cv"), ctx = cv.getContext("2d");
+
+// ---------- 時間：以「月」為單位，0 ＝ 1889 年 4 月 ----------
+const BIRTH = { y: 1889, m: 4, d: 26 };
+const toIdx = (y, m) => (y - 1889) * 12 + (m - 4);
+const fromIdx = i => ({ y: 1889 + Math.floor((i + 3) / 12), m: ((i + 3) % 12) + 1 });
+const MAXI = toIdx(1951, 4);
+const P = {}; B.places.forEach(p => P[p.id] = p);
+const EV = B.events.map(e => ({ ...e, s: toIdx(e.y0, e.m0 || 1), e: toIdx(e.y1, e.m1 || 12) }));
+const LOWER_AT = new Set(["trattenbach", "hassbach", "puchberg", "otterthal"]);
+
+// ---------- 投影：Lambert 方位等積（LAEA）----------
+function laea(lon0, lat0) {
+  const l0 = lon0 * D2R, p1 = lat0 * D2R, s1 = Math.sin(p1), c1 = Math.cos(p1);
+  return (lon, lat) => {
+    const l = lon * D2R - l0, p = lat * D2R, sp = Math.sin(p), cp = Math.cos(p), cl = Math.cos(l);
+    const k = Math.sqrt(2 / (1 + s1 * sp + c1 * cp * cl));
+    return [k * cp * Math.sin(l), k * (c1 * sp - s1 * cp * cl)];
+  };
+}
+const projEU = laea(5, 52), projNA = laea(-75, 43);
+
+// 大圓插值（球面線性插值）
+function vec(lon, lat) { const a = lon * D2R, b = lat * D2R; return [Math.cos(b) * Math.cos(a), Math.cos(b) * Math.sin(a), Math.sin(b)]; }
+function gcPoints(a, b, n) {
+  const A = vec(a.lon, a.lat), Bv = vec(b.lon, b.lat);
+  const dot = Math.min(1, Math.max(-1, A[0] * Bv[0] + A[1] * Bv[1] + A[2] * Bv[2])), w = Math.acos(dot), out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, s = w < 1e-9 ? 0 : Math.sin(w);
+    const f0 = s ? Math.sin((1 - t) * w) / s : 1 - t, f1 = s ? Math.sin(t * w) / s : t;
+    const x = f0 * A[0] + f1 * Bv[0], y = f0 * A[1] + f1 * Bv[1], z = f0 * A[2] + f1 * Bv[2];
+    out.push({ lon: Math.atan2(y, x) / D2R, lat: Math.atan2(z, Math.hypot(x, y)) / D2R });
+  }
+  return out;
+}
+function hav(a, b) {
+  const dp = (b.lat - a.lat) * D2R, dl = (b.lon - a.lon) * D2R;
+  const h = Math.sin(dp / 2) ** 2 + Math.cos(a.lat * D2R) * Math.cos(b.lat * D2R) * Math.sin(dl / 2) ** 2;
+  return 2 * R_EARTH * Math.asin(Math.sqrt(h));
+}
+
+// 路線：依時間排序、地點有變化才算一段
+const LEGS = [];
+{ let prev = null;
+  EV.forEach(e => { if (!e.place) return; if (prev && prev !== e.place) LEGS.push({ from: P[prev], to: P[e.place], s: e.s, km: hav(P[prev], P[e.place]) }); prev = e.place; });
+  LEGS.forEach(L => L.pts = gcPoints(L.from, L.to, 48)); }
+
+// ---------- 版面與底圖 ----------
+let W = 0, H = 0, dpr = 1, base = null, view = null, inset = null, naBox = null, hit = [];
+const VIEW_LL = [[-11, 51], [-10.5, 54.5], [8, 63], [19, 61], [19, 47], [15, 40.6], [-6, 49]];   // 主圖需要涵蓋的範圍（經度, 緯度）
+function fitView(proj, pts, x, y, w, h, pad) {
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  pts.forEach(([lo, la]) => { const [px, py] = proj(lo, la); x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); });
+  const s = Math.min((w - 2 * pad) / (x1 - x0), (h - 2 * pad) / (y1 - y0));
+  const ox = x + w / 2 - s * (x0 + x1) / 2, oy = y + h / 2 + s * (y0 + y1) / 2;
+  return { proj, s, f: (lon, lat) => { const [px, py] = proj(lon, lat); return [ox + s * px, oy - s * py]; }, x, y, w, h };
+}
+function drawCountries(g, V, list, q, clip, fillFn) {
+  g.save();
+  if (clip) { g.beginPath(); g.rect(V.x, V.y, V.w, V.h); g.clip(); }
+  list.forEach(c => {
+    g.beginPath();
+    c.p.forEach(r => { for (let i = 0; i < r.length; i += 2) { const [x, y] = V.f(r[i] / q, r[i + 1] / q); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath(); });
+    g.fillStyle = fillFn ? fillFn(c) : C.land; g.fill();
+    g.strokeStyle = C.border; g.lineWidth = 0.7; g.stroke();
+  });
+  g.restore();
+}
+function graticule(g, V, lons, lats) {
+  g.save(); g.beginPath(); g.rect(V.x, V.y, V.w, V.h); g.clip();
+  g.strokeStyle = "rgba(237,230,214,.06)"; g.lineWidth = 1;
+  lons.forEach(lo => { g.beginPath(); for (let la = 30; la <= 75; la += 1) { const [x, y] = V.f(lo, la); la === 30 ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke(); });
+  lats.forEach(la => { g.beginPath(); for (let lo = -35; lo <= 45; lo += 1) { const [x, y] = V.f(lo, la); lo === -35 ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke(); });
+  g.restore();
+}
+const LABELS = [["英國", -1.8, 52.6], ["愛爾蘭", -8.2, 53.0], ["挪威", 9.0, 60.0], ["瑞典", 15.0, 62.0], ["法國", 2.3, 46.8], ["德國", 10.2, 51.0], ["義大利", 12.3, 43.2], ["奧地利", 13.8, 47.4], ["瑞士", 8.1, 46.75], ["荷蘭", 5.6, 52.4], ["丹麥", 9.2, 56.1], ["波蘭", 19.0, 52.0], ["捷克", 15.2, 49.8], ["北海", 3.0, 56.4], ["大西洋", -13.0, 47.0]];
+function layout() {
+  app.classList.toggle("portrait", innerHeight > innerWidth * 1.05);
+  const r = cv.getBoundingClientRect(); dpr = Math.min(devicePixelRatio || 1, 2);
+  W = r.width; H = r.height; if (W < 10 || H < 10) return;
+  cv.width = W * dpr | 0; cv.height = H * dpr | 0;
+  view = fitView(projEU, VIEW_LL, 0, 0, W, H, 10);
+  // 下奧地利放大框（右下）與北美定位小圖（左上）
+  const iw = Math.min(W * (W < 520 ? 0.46 : 0.36), 240), ih = iw * 0.8;
+  inset = fitView(projEU, [[15.62, 47.52], [16.28, 47.52], [15.62, 47.86], [16.28, 47.86]], W - iw - 8, 8, iw, ih, 12);
+  const nw = Math.min(W * 0.26, 150), nh = nw * 0.75;
+  naBox = fitView(projNA, [[-84, 36], [-66, 36], [-84, 47.5], [-66, 47.5]], 8, 8, nw, nh, 6);
+  // 底圖畫到離屏 canvas
+  base = document.createElement("canvas"); base.width = cv.width; base.height = cv.height;
+  const g = base.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  graticule(g, view, [-20, -10, 0, 10, 20, 30], [40, 45, 50, 55, 60, 65]);
+  drawCountries(g, view, G.countries, G.q, false, c => c.a3 === "AUT" ? C.land2 : C.land);
+  g.font = "11px 'Noto Serif TC',serif"; g.textAlign = "center"; g.fillStyle = "rgba(156,151,139,.55)";
+  LABELS.forEach(([t, lo, la]) => { const [x, y] = view.f(lo, la); if (x > 0 && x < W && y > 0 && y < H) g.fillText(t, x, y); });
+  // 放大框在主圖上的位置
+  const a = view.f(15.62, 47.86), b = view.f(16.28, 47.52);
+  g.strokeStyle = "rgba(227,154,78,.55)"; g.lineWidth = 1; g.strokeRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+  g.beginPath(); g.moveTo(b[0], a[1]); g.lineTo(inset.x + 4, inset.y + inset.h - 4); g.setLineDash([3, 3]); g.stroke(); g.setLineDash([]);
+  // 小圖框
+  [inset, naBox].forEach(V => { g.fillStyle = "rgba(14,15,18,.94)"; g.fillRect(V.x, V.y, V.w, V.h); });
+  drawCountries(g, inset, G.countries.filter(c => ["AUT", "HUN", "SVK", "CZE"].includes(c.a3)), G.q, true, c => c.a3 === "AUT" ? C.land2 : C.land);
+  drawCountries(g, naBox, G.na, G.q, true);
+  [inset, naBox].forEach(V => { g.strokeStyle = "rgba(227,154,78,.55)"; g.lineWidth = 1; g.strokeRect(V.x + .5, V.y + .5, V.w - 1, V.h - 1); });
+  g.font = "10px 'Noto Serif TC',serif"; g.textAlign = "left"; g.fillStyle = C.sub;
+  g.fillText("下奧地利（放大）", inset.x + 6, inset.y + 13);
+  g.fillText("大西洋彼岸・北美", naBox.x + 5, naBox.y + naBox.h - 5);
+  // 比例尺（主圖）：LAEA 在中心附近 1 單位 ＝ 地球半徑
+  { const px = view.s * 500 / R_EARTH, x0 = 12, y0 = H - document.querySelector('.tag').offsetHeight - 14;
+    g.strokeStyle = C.sub; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y0 - 4); g.lineTo(x0, y0); g.lineTo(x0 + px, y0); g.lineTo(x0 + px, y0 - 4); g.stroke();
+    g.fillStyle = C.sub; g.fillText("500 km", x0 + 2, y0 - 6); }
+  draw();
+}
+
+// ---------- 每一格 ----------
+let t = 0, playing = false, last = 0, acc = 0;
+const curEvent = i => { let c = null; EV.forEach(e => { if (e.s <= i) c = e; }); return c; };
+function inBox(V, x, y) { return x >= V.x && x <= V.x + V.w && y >= V.y && y <= V.y + V.h; }
+function mark(g, x, y, state, r) {
+  if (state === 2) { g.fillStyle = "rgba(227,154,78,.22)"; g.beginPath(); g.arc(x, y, r + 7 + 2 * Math.sin(performance.now() / 260), 0, 7); g.fill(); }
+  g.beginPath(); g.arc(x, y, r, 0, 7);
+  if (state === 0) { g.strokeStyle = "rgba(156,151,139,.6)"; g.lineWidth = 1; g.stroke(); }
+  else { g.fillStyle = state === 2 ? C.amber : C.clay; g.fill(); g.strokeStyle = "#0E0F12"; g.lineWidth = 1; g.stroke(); }
+}
+function poly(g, V, pts, upto) {
+  g.beginPath(); let started = false;
+  const n = Math.max(1, Math.round(upto * (pts.length - 1)));
+  for (let i = 0; i <= n; i++) { const [x, y] = V.f(pts[i].lon, pts[i].lat); started ? g.lineTo(x, y) : (g.moveTo(x, y), started = true); }
+  g.stroke();
+  return V.f(pts[n].lon, pts[n].lat);
+}
+function draw() {
+  if (!view) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(base, 0, 0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const ce = curEvent(t), visited = new Set(EV.filter(e => e.s <= t && e.place).map(e => e.place));
+  const curPlace = ce ? ce.place : null;
+  // 路線
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+  let moving = null;
+  LEGS.forEach(L => {
+    if (L.s > t) return;
+    const prog = Math.min(1, (t - L.s + 1) / 3);           // 每段路線用 3 個月畫完
+    const toNA = L.to.id === "ithaca" || L.from.id === "ithaca";
+    ctx.strokeStyle = prog < 1 ? C.amber : "rgba(185,130,90,.75)"; ctx.lineWidth = prog < 1 ? 2.2 : 1.3;
+    if (toNA) ctx.setLineDash([4, 4]);
+    const end = poly(ctx, view, L.pts, prog);
+    ctx.setLineDash([]);
+    if (prog < 1) moving = end;
+  });
+  ctx.restore();
+  if (moving) { ctx.fillStyle = C.txt; ctx.beginPath(); ctx.arc(moving[0], moving[1], 3.5, 0, 7); ctx.fill(); }
+  // 主圖地點（下奧地利三村只畫一個群組點，細節在放大框）
+  hit = [];
+  ctx.font = "12px 'Noto Serif TC',serif"; ctx.textAlign = "left";
+  B.places.forEach(p => {
+    if (p.id === "ithaca") return;
+    const lower = LOWER_AT.has(p.id);
+    const [x, y] = view.f(p.lon, p.lat);
+    const st = p.id === curPlace ? 2 : visited.has(p.id) ? 1 : 0;
+    if (!lower) { mark(ctx, x, y, st, st ? 4.5 : 3.5); hit.push({ id: p.id, x, y }); }
+    if (!lower && st) {
+      const name = p.zh.replace(/（.*）/, "");
+      ctx.fillStyle = st === 2 ? C.txt : "rgba(237,230,214,.75)";
+      const OFF = { dublin: [8, -4], redcross: [-8, 13], rosro: [-8, 4], swansea: [-8, 6], london: [8, 12], cambridge: [8, 0] };
+      const [dx, dy] = OFF[p.id] || [p.lon < -1 ? -8 : 8, 4];
+      ctx.textAlign = dx < 0 ? "right" : "left"; ctx.fillText(name, x + dx, y + dy);
+    }
+  });
+  const anyLower = [...LOWER_AT].some(id => visited.has(id)), curLower = LOWER_AT.has(curPlace);
+  { const [x, y] = view.f(15.9, 47.68); mark(ctx, x, y, curLower ? 2 : anyLower ? 1 : 0, 4); hit.push({ id: "trattenbach", x, y });
+    if (anyLower) { const right = x > W - 90; ctx.fillStyle = curLower ? C.txt : "rgba(237,230,214,.75)"; ctx.textAlign = right ? "right" : "left"; ctx.fillText("下奧地利的村子", x + (right ? -8 : 8), y + 16); } }
+  // 放大框
+  ctx.save(); ctx.beginPath(); ctx.rect(inset.x, inset.y, inset.w, inset.h); ctx.clip();
+  LEGS.forEach(L => { if (L.s > t) return; if (![L.from.id, L.to.id].every(id => LOWER_AT.has(id))) return;
+    ctx.strokeStyle = "rgba(185,130,90,.8)"; ctx.lineWidth = 1.3; poly(ctx, inset, L.pts, Math.min(1, (t - L.s + 1) / 3)); });
+  ctx.font = "11px 'Noto Serif TC',serif";
+  const LO = { trattenbach: [-7, 4, "right"], otterthal: [7, 13, "left"], puchberg: [7, -3, "left"], hassbach: [7, 4, "left"] };
+  [...LOWER_AT].forEach(id => {
+    const p = P[id], [x, y] = inset.f(p.lon, p.lat), st = id === curPlace ? 2 : visited.has(id) ? 1 : 0;
+    mark(ctx, x, y, st, 4); hit.push({ id, x, y });
+    ctx.fillStyle = st ? C.txt : C.sub; ctx.textAlign = LO[id][2];
+    ctx.fillText(p.zh, x + LO[id][0], y + LO[id][1]);
+  });
+  { const v = P.vienna, d = Math.round(hav(v, P.puchberg)); ctx.fillStyle = C.sub; ctx.textAlign = "right"; ctx.fillText("↗ 維也納 約 " + d + " km", inset.x + inset.w - 6, inset.y + 13); }
+  // 10 km 比例尺（放大框）
+  { const la = 47.53, lo = 16.1, d = 10 / (111.32 * Math.cos(la * D2R)); const a = inset.f(lo, la), b = inset.f(lo + d, la);
+    ctx.strokeStyle = C.sub; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.fillStyle = C.sub; ctx.textAlign = "left"; ctx.fillText("10 km", a[0], a[1] - 4); }
+  ctx.restore();
+  // 北美小圖＋「大西洋彼岸」箭頭
+  { const p = P.ithaca, [x, y] = naBox.f(p.lon, p.lat), st = curPlace === "ithaca" ? 2 : visited.has("ithaca") ? 1 : 0;
+    mark(ctx, x, y, st, 4); hit.push({ id: "ithaca", x, y });
+    ctx.font = "11px 'Noto Serif TC',serif"; ctx.textAlign = "left"; ctx.fillStyle = st ? C.txt : C.sub; ctx.fillText("綺色佳", x + 7, y + 4);
+    if (st) {                                      // 主圖上：從愛爾蘭沿大圓往西，到畫面邊緣加箭頭
+      const leg = LEGS.find(L => L.to.id === "ithaca"); if (leg) {
+        let ex = null; for (const q of leg.pts) { const [qx, qy] = view.f(q.lon, q.lat); if (qx < 0 || qy < 0 || qx > W || qy > H || inBox(naBox, qx, qy)) break; ex = [qx, qy]; }
+        if (ex) { ctx.fillStyle = C.amber; ctx.beginPath(); ctx.moveTo(ex[0] - 2, ex[1]); ctx.lineTo(ex[0] + 8, ex[1] - 5); ctx.lineTo(ex[0] + 8, ex[1] + 5); ctx.fill(); }
+        ctx.fillStyle = C.amber; ctx.font = "11px 'Noto Serif TC',serif"; ctx.textAlign = "left";
+        ctx.fillText("← 橫渡大西洋 約 " + Math.round(leg.km).toLocaleString() + " km", naBox.x, naBox.y + naBox.h + 14);
+      } }
+  }
+  side(ce);
+}
+
+// ---------- 側欄 ----------
+let lastEv = null;
+const li = [];
+function buildList() {
+  $("list").innerHTML = EV.map((e, k) => `<li data-k="${k}"><span class="d">${e.y0}${e.y1 !== e.y0 ? "–" + String(e.y1).slice(2) : ""}</span><span>${e.zh}</span></li>`).join("");
+  $("list").querySelectorAll("li").forEach(x => li.push(x));
+}
+function age(y, m) { let a = y - BIRTH.y; if (m < BIRTH.m) a--; return a; }  // 以月為單位：該月 1 日的年齡（4 月當月以 26 日前計）
+function side(ce) {
+  const { y, m } = fromIdx(t);
+  $("nYr").innerHTML = `${y}<small>${m} 月</small>`;
+  $("rAge").textContent = (y === 1889 ? 0 : age(y, m)) + " 歲";
+  const vis = new Set(EV.filter(e => e.s <= t && e.place).map(e => e.place));
+  $("rPl").textContent = vis.size + " / " + B.places.length;
+  const km = LEGS.filter(L => L.s <= t).reduce((s, L) => s + L.km, 0);
+  $("rKm").textContent = Math.round(km).toLocaleString() + " km";
+  if (ce === lastEv && ce && t <= ce.e) return;
+  lastEv = ce;
+  const gap = ce && t > ce.e;
+  const p = ce && ce.place ? P[ce.place] : null;
+  $("nPl").innerHTML = p ? `${p.zh}<i>${p.en}・今${p.country_now}</i>` : (ce ? "前線（地圖未標）" : "");
+  $("nEv").textContent = ce ? (gap ? "（轉換期）上一段：" + ce.zh : ce.zh) : "";
+  $("nNt").textContent = ce ? ce.note : "";
+  $("nRf").textContent = ce ? "出處：" + ce.ref.replace("Monk", "孟克《天才的責任》") + "（pdf 頁）" : "";
+  li.forEach((x, k) => { x.classList.toggle("cur", EV[k] === ce); x.classList.toggle("past", EV[k].s <= t && EV[k] !== ce); });
+  const cur = li[EV.indexOf(ce)]; if (cur) { const box = $("side"), top = cur.offsetTop - box.clientHeight / 2; box.scrollTo({ top, behavior: "smooth" }); }
+}
+
+// ---------- 互動 ----------
+function loop(now) {
+  if (playing) {
+    const dt = Math.min(100, now - (last || now)); last = now;
+    acc += dt * 0.012 * (+$("spd").value);         // 中速：約 12 個月／秒
+    if (acc >= 1) { const k = Math.floor(acc); acc -= k; t = Math.min(MAXI, t + k); $("sl").value = t; if (t >= MAXI) setPlay(false); }
+  }
+  draw();                                          // 底圖已預先畫好，每格只疊路線與地點
+  requestAnimationFrame(loop);
+}
+function setPlay(on) { playing = on; last = 0; $("bPlay").textContent = on ? "❚❚ 暫停" : "▶ 播放"; if (on && t >= MAXI) t = 0; }
+function jump(i) { t = Math.max(0, Math.min(MAXI, i)); $("sl").value = t; lastEv = undefined; draw(); }
+$("bPlay").onclick = () => setPlay(!playing);
+$("sl").oninput = e => { setPlay(false); jump(+e.target.value); };
+$("list").addEventListener("click", e => { const x = e.target.closest("li"); if (x) { setPlay(false); jump(EV[+x.dataset.k].s); } });
+const clickCount = {};
+cv.addEventListener("pointerup", e => {
+  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  let best = null, bd = 18;
+  hit.forEach(h => { const d = Math.hypot(h.x - x, h.y - y); if (d < bd) { bd = d; best = h; } });
+  if (!best) return;
+  const evs = EV.filter(ev => ev.place === best.id);
+  if (!evs.length) return;
+  const n = clickCount[best.id] = ((clickCount[best.id] ?? -1) + 1) % evs.length;   // 同一地點再點一次：跳到下一段在那裡的年代
+  setPlay(false); jump(evs[n].s);
+});
+addEventListener("keydown", e => { if (e.key === " ") { e.preventDefault(); setPlay(!playing); } if (e.key === "ArrowRight") jump(t + 12); if (e.key === "ArrowLeft") jump(t - 12); });
+
+buildList();
+new ResizeObserver(layout).observe(document.body);
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

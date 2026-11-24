@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>這句話在玩哪一種遊戲？</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--blue:#6FA3D8;--moss:#8FB573;--rust:#C9644A;--wis:#A58BD0}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1.1fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+#read{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:6px}
+#feats label{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--txt);padding:4px 0;cursor:pointer;line-height:1.5}
+#feats input{accent-color:var(--amber);width:18px;height:18px;margin-top:2px;flex:none}
+#presets{display:flex;flex-wrap:wrap;gap:6px}
+#presets button{font-size:12px;padding:4px 8px;min-height:30px}
+#presets button.on{border-color:var(--amber);color:var(--amber)}
+#l23{list-style:none;counter-reset:n;font-size:12px;line-height:1.55;color:var(--sub)}
+#l23 li{counter-increment:n;padding:1px 0 1px 26px;position:relative}
+#l23 li::before{content:counter(n);position:absolute;left:0;width:20px;text-align:right;font-family:"JetBrains Mono",monospace;font-size:11px}
+#l23 li.hit{color:var(--amber)}
+#l23 li.hit::before{color:var(--amber)}
+#off{font-size:12px;color:var(--moss);margin-top:4px;min-height:1.4em}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label.sel{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+select,button{background:#1E2128;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:34px;cursor:pointer}
+button:active{background:#262A31}
+#app.portrait header span{display:none}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>這句話在玩哪一種遊戲？</h1><span>同一句話放進不同情境，下一步行動跟著改變（§7、§21、§23）</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="情境中的說話者與聽者、這句話，以及各種語言遊戲的機率與下一步行動"></canvas></div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small>目前的遊戲</small><b id="rG" style="color:var(--amber)">—</b></div>
+      <div><small>情境組合數</small><b id="rN">—</b></div>
+      <div><small>這句話玩得出幾種</small><b id="rK">—</b></div>
+    </div>
+    <div class="sec"><h3>情境卡（一鍵設定）</h3><div id="presets"></div></div>
+    <div class="sec"><h3>或自己調整情境（每一項都會改變分數）</h3><div id="feats"></div></div>
+    <div class="sec"><h3>§23 列出的語言遊戲（本站轉述）：亮起＝目前這一種</h3><ol id="l23"></ol><div id="off"></div></div>
+  </div>
+  <div id="ctrl" class="box">
+    <label class="sel">句子 <select id="sent"></select></label>
+    <button id="bRand">隨機情境</button>
+    <button id="bAll">列舉全部情境</button>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const C = { amber: "#E39A4E", clay: "#B9825A", blue: "#6FA3D8", moss: "#8FB573", rust: "#C9644A", wis: "#A58BD0", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D" };
+// §23 的清單（本站轉述，15 行；最後一行含五種：請求、道謝、咒罵、問候、祈禱）
+const L23 = ["下命令，並照命令去做", "依外觀或量測描述一個東西", "照描述（或圖）做出一個東西", "報告一件事的經過", "對事情的經過做推測", "提出假說並檢驗", "用表格與圖呈現實驗結果", "編故事；讀故事", "演戲", "唱輪唱曲", "猜謎", "編笑話；講笑話", "解一道應用算術題", "把一種語言翻成另一種", "請求、道謝、咒罵、問候、祈禱"];
+// 情境特徵（0／1）
+const FEATS = [
+  "說話的人是上司，或正在指揮工作的人",
+  "屋裡很冷，或外面很吵",
+  "聽的人剛剛問了一個問題（例如「門關好了嗎？」「那邊有幾塊？」）",
+  "有人正要出門離開",
+  "家裡有可能跑出去的貓或小孩",
+  "說話的人是店家，對著門外的路人說"
+];
+// 每一句話可能玩的遊戲：分數 ＝ b ＋ Σ wᵢ·xᵢ，再用 softmax 轉成機率。l23：對應 §23 清單第幾行（0 表示清單沒列）
+const SENTS = [
+  { text: "門開著。", games: [
+    { g: "命令", l23: 1, b: -1.0, w: [2.6, 1.6, -2.0, 0, 0, -2.5], next: "聽的人起身去把門關上", who: "聽者行動" },
+    { g: "報告", l23: 4, b: 0.6, w: [0, 0, 3.0, 0, 0, -1.5], next: "對方記下來，或回答「好，知道了」", who: "資訊傳遞" },
+    { g: "抱怨", l23: 0, b: -0.8, w: [-1.8, 2.4, -1.0, 0, 0, -2], next: "對方道歉，或嘟囔著去關門", who: "表達不滿" },
+    { g: "提醒", l23: 0, b: -1.2, w: [0, 0, -0.5, 2.0, 2.4, -2], next: "對方回頭檢查門、把貓抱回來", who: "避免出事" },
+    { g: "邀請", l23: 15, b: -1.6, w: [-0.5, -1, -1, 0, 0, 4.2], next: "路人走進店裡", who: "請人進來" }
+  ] },
+  { text: "五塊石板。", games: [
+    { g: "命令", l23: 1, b: -0.4, w: [2.8, 0, -2.5, 0, 0, 0], next: "B 搬五塊石板過來（§21 的命令）", who: "聽者行動" },
+    { g: "報告", l23: 4, b: 0.4, w: [-1.0, 0, 3.0, 0, 0, 0], next: "A 記下數量，決定下一步怎麼蓋（§21 的報告）", who: "資訊傳遞" },
+    { g: "請求", l23: 15, b: -1.2, w: [-1.5, 0, -1, 0, 0, 2.6], next: "店家幫客人搬五塊石板，客人付錢", who: "客氣地要" }
+  ] },
+  { text: "好冷喔。", games: [
+    { g: "抱怨", l23: 0, b: 0.2, w: [-1.0, 1.8, -0.5, 0, 0, -1], next: "旁人附和或安慰一句", who: "表達不滿" },
+    { g: "請求", l23: 15, b: -0.8, w: [1.6, 1.8, -1, 0, 0, -1], next: "旁人去關窗、開暖氣", who: "希望別人做事" },
+    { g: "報告", l23: 4, b: -0.3, w: [0, -0.5, 3.0, 0, 0, 0], next: "對方決定要不要帶外套出門", who: "回答問題" },
+    { g: "問候", l23: 15, b: -1.0, w: [0, 0, -1, 1.2, 0, 2.6], next: "對方回一句「對啊，今天寒流」，寒暄繼續", who: "打招呼" }
+  ] }
+];
+const PRESETS = [
+  { name: "冬天的辦公室，主管對你說", x: [1, 1, 0, 0, 0, 0] },
+  { name: "保全用對講機問你：門關了嗎？", x: [0, 0, 1, 0, 0, 0] },
+  { name: "室友縮在沙發上說", x: [0, 1, 0, 0, 0, 0] },
+  { name: "你正要出門，家裡有貓", x: [0, 0, 0, 1, 1, 0] },
+  { name: "店員站在門口對路人說", x: [0, 0, 0, 0, 0, 1] }
+];
+const app = $("app"), cv = $("cv"), ctx = cv.getContext("2d");
+let si = 0, x = PRESETS[0].x.slice(), preset = 0, shown = null, t0 = 0;
+
+function scores(S, xv) { return S.games.map(g => g.b + g.w.reduce((s, w, i) => s + w * xv[i], 0)); }
+function softmax(z) { const m = Math.max(...z), e = z.map(v => Math.exp(v - m)), s = e.reduce((a, b) => a + b, 0); return e.map(v => v / s); }
+const argmax = a => a.indexOf(Math.max(...a));
+// 列舉 2^6 種情境，統計這句話最可能玩成哪幾種遊戲
+function enumerate(S) {
+  const n = FEATS.length, cnt = S.games.map(() => 0);
+  for (let m = 0; m < (1 << n); m++) { const xv = FEATS.map((_, i) => (m >> i) & 1); cnt[argmax(scores(S, xv))]++; }
+  return cnt;
+}
+let enumCnt = null;
+
+// ---------- 介面 ----------
+function buildUI() {
+  $("sent").innerHTML = SENTS.map((s, i) => `<option value="${i}">${s.text}</option>`).join("");
+  $("presets").innerHTML = PRESETS.map((p, i) => `<button data-p="${i}">${p.name}</button>`).join("");
+  $("feats").innerHTML = FEATS.map((f, i) => `<label><input type="checkbox" data-f="${i}"><span>${f}</span></label>`).join("");
+  $("l23").innerHTML = L23.map(t => `<li>${t}</li>`).join("");
+}
+function sync() {
+  const S = SENTS[si], P = softmax(scores(S, x)), k = argmax(P), G = S.games[k];
+  document.querySelectorAll("[data-f]").forEach(c => c.checked = !!x[+c.dataset.f]);
+  document.querySelectorAll("[data-p]").forEach(b => b.classList.toggle("on", +b.dataset.p === preset));
+  $("rG").textContent = G.g;
+  $("rN").textContent = (1 << FEATS.length);
+  enumCnt = enumerate(S);
+  $("rK").textContent = enumCnt.filter(c => c > 0).length + " / " + S.games.length;
+  document.querySelectorAll("#l23 li").forEach((li, i) => li.classList.toggle("hit", G.l23 === i + 1));
+  $("off").textContent = G.l23 ? "" : `「${G.g}」不在這 15 行裡，但 §23 說的是「以及其他」：清單本來就數不完。`;
+  if (shown !== k) { shown = k; t0 = performance.now(); }
+}
+
+// ---------- 繪圖 ----------
+let W = 0, H = 0;
+function layout() {
+  app.classList.toggle("portrait", innerHeight > innerWidth * 1.05);
+  const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2);
+  W = r.width; H = r.height; cv.width = W * d | 0; cv.height = H * d | 0; ctx.setTransform(d, 0, 0, d, 0, 0);
+}
+function fig(x0, y0, s, col, label) {
+  ctx.strokeStyle = col; ctx.lineWidth = 2.2; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.arc(x0, y0 - 2.6 * s, 0.32 * s, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x0, y0 - 2.25 * s); ctx.lineTo(x0, y0 - 1.1 * s); ctx.lineTo(x0 - 0.4 * s, y0); ctx.moveTo(x0, y0 - 1.1 * s); ctx.lineTo(x0 + 0.4 * s, y0);
+  ctx.moveTo(x0 - 0.5 * s, y0 - 1.8 * s); ctx.lineTo(x0 + 0.5 * s, y0 - 1.8 * s); ctx.stroke();
+  ctx.fillStyle = C.sub; ctx.font = "12px 'Noto Serif TC',serif"; ctx.textAlign = "center"; ctx.fillText(label, x0, y0 + 16);
+}
+function wrap(text, x0, y0, maxW, lh) {
+  let line = "", y = y0;
+  for (const ch of text) { if (ctx.measureText(line + ch).width > maxW && line) { ctx.fillText(line, x0, y); line = ch; y += lh; } else line += ch; }
+  ctx.fillText(line, x0, y); return y;
+}
+function draw(now) {
+  if (W) {
+    ctx.clearRect(0, 0, W, H);
+    const S = SENTS[si], z = scores(S, x), P = softmax(z), k = argmax(P), G = S.games[k];
+    const big = Math.max(16, Math.min(30, W / 16));
+    // 上半：情境與人物
+    const ctxText = preset >= 0 ? PRESETS[preset].name : "自訂情境：" + (FEATS.filter((_, i) => x[i]).map(f => f.split("，")[0].replace(/（.*）/, "")).join("、") || "沒有任何特別的情境");
+    ctx.fillStyle = C.sub; ctx.font = "12px 'Noto Serif TC',serif"; ctx.textAlign = "left";
+    wrap("情境｜" + ctxText, 12, 20, W - 24, 16);
+    const gy = Math.min(H * 0.42, 40 + big * 4.2), s = Math.max(14, big * 0.9);
+    fig(W * 0.18, gy, s, C.amber, x[0] ? "上司" : x[5] ? "店員" : "說話的人");
+    fig(W * 0.82, gy, s, C.blue, x[5] ? "路人" : "聽的人");
+    // 句子泡泡
+    ctx.font = `600 ${big}px 'Noto Serif TC',serif`; ctx.textAlign = "center";
+    const tw = ctx.measureText(S.text).width + 24, bx = W * 0.5 - tw / 2, by = gy - 3.0 * s - big * 0.4;
+    ctx.fillStyle = "rgba(227,154,78,.14)"; ctx.strokeStyle = C.amber; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by - big * 0.95, tw, big * 1.45, 10) : ctx.rect(bx, by - big * 0.95, tw, big * 1.45); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.txt; ctx.fillText(S.text, W * 0.5, by + big * 0.1);
+    // 下一步行動：從說話者經過句子到聽者的箭頭
+    const k2 = Math.min(1, (now - t0) / 500);
+    ctx.strokeStyle = C.amber; ctx.lineWidth = 2; ctx.globalAlpha = 0.4 + 0.6 * k2;
+    const ax0 = W * 0.18 + s * 0.8, ax1 = W * 0.82 - s * 0.8, ay = gy - 1.6 * s;
+    ctx.beginPath(); ctx.moveTo(ax0, ay); ctx.lineTo(ax0 + (ax1 - ax0) * k2, ay); ctx.stroke();
+    if (k2 >= 1) { ctx.beginPath(); ctx.moveTo(ax1, ay); ctx.lineTo(ax1 - 9, ay - 5); ctx.lineTo(ax1 - 9, ay + 5); ctx.fillStyle = C.amber; ctx.fill(); }
+    ctx.globalAlpha = 1;
+    ctx.font = `600 ${Math.max(13, big * 0.58)}px 'Noto Serif TC',serif`; ctx.fillStyle = C.amber; ctx.textAlign = "center";
+    ctx.fillText("這裡玩的是：" + G.g, W * 0.5, ay + Math.max(18, big * 0.8));
+    ctx.font = `${Math.max(12, big * 0.5)}px 'Noto Serif TC',serif`; ctx.fillStyle = C.txt;
+    const ny = wrap("下一步：" + G.next, W * 0.5, gy + 40, W * 0.8, Math.max(16, big * 0.7));
+    // 下半：每一種遊戲的分數與 softmax 機率
+    const top = ny + 22, rowH = Math.max(22, Math.min(34, (H - top - 16) / S.games.length)), lw = Math.min(96, W * 0.22), bw = W - lw - 90;
+    ctx.font = "11px 'Noto Serif TC',serif"; ctx.fillStyle = C.sub; ctx.textAlign = "left";
+    ctx.fillText("每一種遊戲的分數 → softmax 機率", 12, top - 6);
+    S.games.forEach((g, i) => {
+      const y = top + i * rowH, on = i === k;
+      ctx.fillStyle = on ? C.amber : C.txt; ctx.font = `${on ? 600 : 400} 13px 'Noto Serif TC',serif`; ctx.textAlign = "right";
+      ctx.fillText(g.g, lw, y + rowH * 0.62);
+      ctx.fillStyle = "rgba(237,230,214,.06)"; ctx.fillRect(lw + 8, y + 4, bw, rowH - 8);
+      ctx.fillStyle = on ? C.amber : "rgba(111,163,216,.6)"; ctx.fillRect(lw + 8, y + 4, bw * P[i], rowH - 8);
+      ctx.fillStyle = C.txt; ctx.font = "12px 'JetBrains Mono',monospace"; ctx.textAlign = "left";
+      ctx.fillText(`${(P[i] * 100).toFixed(0)}%`, lw + 14 + bw, y + rowH * 0.62);
+      ctx.fillStyle = C.sub; ctx.font = "10px 'JetBrains Mono',monospace"; ctx.fillText(`z=${z[i].toFixed(1)}`, lw + 14 + bw + 36, y + rowH * 0.62);
+    });
+  }
+  requestAnimationFrame(draw);
+}
+
+// ---------- 互動 ----------
+$("presets").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if (!b) return; preset = +b.dataset.p; x = PRESETS[preset].x.slice(); sync(); });
+$("feats").addEventListener("change", e => { const c = e.target.closest("[data-f]"); if (!c) return; x[+c.dataset.f] = c.checked ? 1 : 0; preset = PRESETS.findIndex(p => p.x.every((v, i) => v === x[i])); sync(); });
+$("sent").onchange = e => { si = +e.target.value; shown = null; sync(); };
+$("bRand").onclick = () => { x = FEATS.map(() => Math.random() < 0.35 ? 1 : 0); preset = PRESETS.findIndex(p => p.x.every((v, i) => v === x[i])); sync(); };
+$("bAll").onclick = () => {
+  const S = SENTS[si], cnt = enumerate(S);
+  $("off").innerHTML = `列舉全部 ${1 << FEATS.length} 種情境：` + S.games.map((g, i) => `${g.g} ${cnt[i]} 種`).join("、") + "。同一句話，用法由情境決定。";
+};
+buildUI(); sync();
+new ResizeObserver(layout).observe(document.body);
+requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

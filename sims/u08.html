@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>甲蟲盒子實驗</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--blue:#6FA3D8;--moss:#8FB573;--wis:#A58BD0;--rust:#C9644A}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,.8fr) minmax(0,1.2fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+#read{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:6px;display:flex;justify-content:space-between;gap:6px;align-items:center;flex-wrap:wrap}
+#verdict{font-size:13px;line-height:1.7}
+.ok{color:var(--moss)}.bad{color:var(--rust)}
+#log{font-size:12.5px;line-height:1.75;list-style:none;counter-reset:l}
+#log li{counter-increment:l;padding-left:26px;position:relative;overflow-wrap:anywhere}
+#log li::before{content:counter(l);position:absolute;left:0;width:20px;text-align:right;color:var(--sub);font-family:"JetBrains Mono",monospace;font-size:10px;top:2px}
+#log li.ev{color:var(--sub);font-size:11.5px}
+#log li.diff{color:var(--rust)}
+#log li.diff::after{content:"  ← 改變後不同";font-size:10px}
+#log b{color:var(--amber);font-weight:600}
+.note{font-size:12px;color:var(--sub);line-height:1.7}
+.note b{color:var(--txt)}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+label.grow{flex:1 1 120px;min-width:110px}
+input[type=range]{flex:1;accent-color:var(--wis);height:28px;min-width:60px}
+input[type=checkbox]{accent-color:var(--wis);width:18px;height:18px}
+output{font-family:"JetBrains Mono",monospace;color:var(--txt);min-width:14px}
+select,button{background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer}
+button:active{background:#262A31}
+button.main{border-color:var(--wis);color:#CDB9F0}
+.cap{position:absolute;left:10px;top:8px;right:10px;font-size:12px;color:var(--sub);pointer-events:none;line-height:1.6}
+.cap b{color:var(--wis);font-family:"JetBrains Mono",monospace;font-weight:600}
+.tag{position:absolute;right:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none}
+#app.portrait header span{display:none}
+#app.portrait .cap{font-size:11px}
+#app.portrait #read b{font-size:13px}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 7px;font-size:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>甲蟲盒子實驗</h1><span>盒裡的東西不屬於語言遊戲，它被「約掉」了（§293）</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="一圈人各拿一個盒子；點盒子可以換掉盒內的東西"></canvas>
+    <div class="cap" id="cap"></div><span class="tag">點盒子＝換掉裡面的東西</span></div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small>配置數 kⁿ</small><b id="rAll">—</b></div>
+      <div><small>相容配置數</small><b id="rComp" style="color:var(--wis)">—</b></div>
+      <div><small>不同的紀錄</small><b id="rDist">—</b></div>
+      <div><small>對話行數</small><b id="rL">—</b></div>
+    </div>
+    <div class="sec"><h3><span>改變前後，逐字比對</span></h3><div id="verdict"></div></div>
+    <div class="sec"><h3><span id="logTitle">對話紀錄</span></h3><ol id="log"></ol></div>
+    <div class="sec"><div class="note" id="moral"></div></div>
+  </div>
+  <div id="ctrl" class="box">
+    <label class="grow">人數 n <input id="nP" type="range" min="3" max="6" step="1" value="4"><output id="oP">4</output></label>
+    <label class="grow">內容種類 k <input id="nK" type="range" min="2" max="5" step="1" value="3"><output id="oK">3</output></label>
+    <label>盒子 <select id="mode"><option value="priv">私人盒子（§293）</option><option value="glass">透明盒子（對照組）</option></select></label>
+    <button id="bChange" class="main">改變盒內內容</button>
+    <button id="bSwap">互換</button>
+    <button id="bEmpty">全部清空</button>
+    <button id="bTalk">換一段對話</button>
+    <label><input id="flux" type="checkbox"> 內容不斷變化</label>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const C = { amber: "#E39A4E", clay: "#B9825A", blue: "#6FA3D8", moss: "#8FB573", wis: "#A58BD0", rust: "#C9644A", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D" };
+const NAMES = ["阿明", "小華", "阿玲", "志強", "美惠", "俊傑"];
+const ALL_KINDS = ["甲蟲", "石頭", "羽毛", "彈珠"];
+const app = $("app"), cv = $("cv"), ctx = cv.getContext("2d");
+
+function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// ---------- 狀態 ----------
+let n = 4, k = 3, mode = "priv", flux = false, talkSeed = 11, changeSeed = 101;
+let kinds = [];                 // 長度 k，最後一個一定是「空的」
+let config = [], prevConfig = null, prevLog = null;
+function setKinds() { kinds = ALL_KINDS.slice(0, k - 1).concat(["空的"]); }
+
+// ---------- 公開事件：只由「誰、在什麼公開情況下」決定，與盒內內容無關 ----------
+function makeEvents(seed) {
+  const r = mulberry(seed), ev = [], pick = () => Math.floor(r() * n);
+  const types = ["bump", "ask", "compare", "hug", "child", "bump", "ask"];
+  for (let s = 0; s < 6; s++) {
+    const t = types[Math.floor(r() * types.length)];
+    let i = pick(), j = pick(); if (j === i) j = (i + 1) % n;
+    ev.push({ t, i, j });
+  }
+  return ev;
+}
+
+// ---------- 依公共規則跑一段對話 ----------
+// boxesAt(step)：第 step 句話說出時的盒內配置（內容不斷變化時每句都不同）
+// 私人盒子的規則只讀得到公開事件；透明盒子的規則多了一條：看得見的內容可以說出來、可以糾正。
+function runDialogue(events, boxesAt) {
+  const lines = []; let step = 0;
+  const say = (who, s) => { const b = boxesAt(step++); lines.push({ who, s, b }); return b; };
+  const ev = s => lines.push({ who: -1, s });
+  const glass = mode === "glass";
+  const see = (b, i) => b[i] === "空的" ? "空的" : b[i];
+  events.forEach(e => {
+    const I = NAMES[e.i], J = NAMES[e.j];
+    if (e.t === "bump") {
+      ev(`（${I}的盒子被撞了一下）`);
+      say(e.i, `${I}：「哎呀，我的甲蟲！」`);
+      const b = say(e.j, `${J}：「你的甲蟲還好嗎？」`);
+      if (glass && b[e.i] !== "甲蟲") say(e.j, `${J}：「等等，你盒子裡${b[e.i] === "空的" ? "是空的" : "那是" + see(b, e.i)}，不是甲蟲啊。」`);
+      else say(e.i, `${I}：「還好，我看過了，牠還在。」`);
+    } else if (e.t === "ask") {
+      const b = say(e.i, `${I}：「${J}，你知道甲蟲是什麼嗎？」`);
+      if (glass) say(e.j, b[e.j] === "甲蟲" ? `${J}：「知道，就是我盒子裡這種，你也看得到。」` : `${J}：「看我盒子：這是${see(b, e.j)}，所以我說不出甲蟲長怎樣。」`);
+      else say(e.j, `${J}：「當然知道，我看我自己的甲蟲就知道。」`);
+    } else if (e.t === "compare") {
+      const b = say(e.i, `${I}：「我的甲蟲跟你的一樣嗎？」`);
+      if (glass) say(e.j, b[e.i] === b[e.j] ? `${J}：「一樣，都是${see(b, e.j)}。」` : `${J}：「不一樣，你的是${see(b, e.i)}，我的是${see(b, e.j)}。」`);
+      else say(e.j, `${J}：「我只看過我自己的，沒辦法比。」`);
+    } else if (e.t === "hug") {
+      ev(`（${I}把盒子緊緊抱在懷裡）`);
+      const b = say(e.j, `${J}：「你很寶貝你的甲蟲喔。」`);
+      say(e.i, glass && b[e.i] === "空的" ? `${I}：「……其實裡面是空的。」` : `${I}：「對啊，牠是我的。」`);
+    } else if (e.t === "child") {
+      ev(`（一個小孩拿著新盒子走過來）`);
+      say(-2, `小孩：「甲蟲是什麼？」`);
+      const b = say(e.i, glass ? `${I}：「你看，這就是甲蟲。」（指著自己的盒子）` : `${I}：「每個人盒子裡都有一個，你看你自己的就知道。」`);
+      if (glass) say(e.j, b[e.i] === "甲蟲" ? `${J}：「對，記住牠的樣子。」` : `${J}：「不對，${I}那個是${see(b, e.i)}。」`);
+    }
+  });
+  return lines;
+}
+const text = lines => lines.map(l => l.s).join("\n");
+
+// 第 step 句時的配置：內容不斷變化時，用固定種子每句隨機重抽（從起始配置出發）
+function boxesFn(start) {
+  if (!flux) return () => start;
+  const r = mulberry(changeSeed), seq = [start];
+  return step => { while (seq.length <= step) seq.push(seq[seq.length - 1].map(v => kinds[(kinds.indexOf(v) + 1 + Math.floor(r() * (k - 1))) % k])); return seq[step]; };
+}
+
+// ---------- 列舉全部 kⁿ 種配置 ----------
+let enumRes = { all: 0, comp: 0, dist: 0 };
+function enumerate(events, curText) {
+  const total = Math.pow(k, n), seen = new Set(); let comp = 0;
+  const c = Array(n).fill(0);
+  for (let idx = 0; idx < total; idx++) {
+    let x = idx; for (let i = 0; i < n; i++) { c[i] = x % k; x = Math.floor(x / k); }
+    const cfg = c.map(v => kinds[v]);
+    const t = text(runDialogue(events, boxesFn(cfg)));
+    seen.add(t); if (t === curText) comp++;
+  }
+  enumRes = { all: total, comp, dist: seen.size };
+}
+
+// ---------- 畫面 ----------
+let SW = 0, SH = 0, boxGeom = [];
+function layout() {
+  app.classList.toggle("portrait", innerHeight > innerWidth * 1.05);
+  const r = cv.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  SW = r.width; SH = r.height; cv.width = Math.max(1, SW * dpr | 0); cv.height = Math.max(1, SH * dpr | 0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+function drawItem(kind, x, y, s) {
+  ctx.save(); ctx.translate(x, y);
+  if (kind === "甲蟲") {
+    ctx.strokeStyle = C.moss; ctx.lineWidth = Math.max(1, s * 0.08);
+    for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(-s * 0.25, i * s * 0.18); ctx.lineTo(-s * 0.5, i * s * 0.3); ctx.moveTo(s * 0.25, i * s * 0.18); ctx.lineTo(s * 0.5, i * s * 0.3); ctx.stroke(); }
+    ctx.fillStyle = C.moss; ctx.beginPath(); ctx.ellipse(0, s * 0.05, s * 0.28, s * 0.36, 0, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -s * 0.36, s * 0.14, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#0E0F12"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, -s * 0.28); ctx.lineTo(0, s * 0.4); ctx.stroke();
+  } else if (kind === "石頭") {
+    ctx.fillStyle = "#8D8A84"; ctx.beginPath();
+    [[-.4, .1], [-.25, -.3], [.15, -.35], [.42, -.05], [.3, .3], [-.15, .35]].forEach(([a, b], i) => i ? ctx.lineTo(a * s, b * s) : ctx.moveTo(a * s, b * s)); ctx.closePath(); ctx.fill();
+  } else if (kind === "羽毛") {
+    ctx.strokeStyle = "#D9D2C2"; ctx.lineWidth = Math.max(1, s * 0.06);
+    ctx.beginPath(); ctx.moveTo(-s * 0.35, s * 0.35); ctx.quadraticCurveTo(0, 0, s * 0.35, -s * 0.38); ctx.stroke();
+    for (let t = 0.2; t < 0.9; t += 0.12) { const px = -s * 0.35 + t * s * 0.7, py = s * 0.35 - t * s * 0.73; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px - s * 0.18, py - s * 0.06); ctx.moveTo(px, py); ctx.lineTo(px + s * 0.06, py + s * 0.18); ctx.stroke(); }
+  } else if (kind === "彈珠") {
+    ctx.fillStyle = C.blue; ctx.beginPath(); ctx.arc(0, 0, s * 0.3, 0, 7); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.beginPath(); ctx.arc(-s * 0.1, -s * 0.1, s * 0.08, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+function draw() {
+  if (!SW) return;
+  ctx.clearRect(0, 0, SW, SH);
+  const capH = $("cap").offsetHeight, top = capH + 14;
+  const cx = SW / 2, cy = top + (SH - top - 14) / 2, R = Math.max(40, Math.min(SW * 0.36, (SH - top - 14) * 0.36));
+  const bs = Math.max(30, Math.min(64, R * 0.55));
+  boxGeom = [];
+  // 中央：公共語言遊戲
+  ctx.fillStyle = "rgba(227,154,78,.10)"; ctx.strokeStyle = "rgba(227,154,78,.5)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 0.42, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = C.amber; ctx.font = `600 ${Math.round(Math.max(12, R * 0.12))}px 'Noto Serif TC',serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("「甲蟲」", cx, cy - R * 0.08); ctx.font = `${Math.round(Math.max(10, R * 0.075))}px 'Noto Serif TC',serif`; ctx.fillStyle = C.sub; ctx.fillText("公共的用法", cx, cy + R * 0.12);
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / n, x = cx + R * Math.cos(a), y = cy + R * Math.sin(a);
+    ctx.strokeStyle = "rgba(227,154,78,.25)"; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(cx + R * 0.42 * Math.cos(a), cy + R * 0.42 * Math.sin(a)); ctx.lineTo(x - bs * 0.5 * Math.cos(a), y - bs * 0.5 * Math.sin(a)); ctx.stroke(); ctx.setLineDash([]);
+    // 盒子
+    const bx = x - bs / 2, by = y - bs / 2;
+    ctx.fillStyle = mode === "glass" ? "rgba(111,163,216,.10)" : "#2A2622"; ctx.strokeStyle = mode === "glass" ? C.blue : C.clay; ctx.lineWidth = 1.5;
+    ctx.fillRect(bx, by, bs, bs); ctx.strokeRect(bx, by, bs, bs);
+    ctx.globalAlpha = mode === "glass" ? 1 : 0.35; drawItem(config[i], x, y + 2, bs * 0.8); ctx.globalAlpha = 1;
+    if (config[i] === "空的") { ctx.fillStyle = C.sub; ctx.font = "10px 'Noto Serif TC',serif"; ctx.fillText("空", x, y); }
+    if (mode !== "glass") { ctx.fillStyle = "rgba(185,130,90,.85)"; ctx.fillRect(bx - 2, by - 5, bs + 4, 6); }
+    if (prevConfig && prevConfig[i] !== config[i]) { ctx.strokeStyle = C.wis; ctx.lineWidth = 2; ctx.strokeRect(bx - 4, by - 8, bs + 8, bs + 12); }
+    ctx.fillStyle = C.txt; ctx.font = `${Math.round(Math.max(11, bs * 0.24))}px 'Noto Serif TC',serif`; ctx.textBaseline = "top";
+    ctx.fillText(NAMES[i], x, y + bs / 2 + 4); ctx.textBaseline = "middle";
+    boxGeom.push({ x: bx - 6, y: by - 8, w: bs + 12, h: bs + 30, i });
+  }
+}
+
+function renderLog(lines, diffIdx) {
+  $("log").innerHTML = lines.map((l, i) => {
+    const s = l.s.replace(/甲蟲/g, "<b>甲蟲</b>");
+    return `<li class="${l.who === -1 ? "ev" : ""}${diffIdx.has(i) ? " diff" : ""}">${s}</li>`;
+  }).join("");
+}
+
+function update() {
+  const events = makeEvents(talkSeed);
+  const lines = runDialogue(events, boxesFn(config));
+  const cur = text(lines);
+  enumerate(events, cur);
+  let diffIdx = new Set(), vhtml;
+  if (prevConfig) {
+    const before = prevLog || text(runDialogue(events, boxesFn(prevConfig)));
+    const A = before.split("\n"), B = cur.split("\n");
+    for (let i = 0; i < Math.max(A.length, B.length); i++) if (A[i] !== B[i]) diffIdx.add(i);
+    const same = before === cur;
+    vhtml = same
+      ? `<span class="ok">✓ 兩份紀錄逐字相同</span>（${B.length} 行、${cur.length} 字）。盒內：<span class="mono">${prevConfig.join("、")}</span> → <span class="mono">${config.join("、")}</span>`
+      : `<span class="bad">✗ 有 ${diffIdx.size} 行不同</span>。盒內：<span class="mono">${prevConfig.join("、")}</span> → <span class="mono">${config.join("、")}</span>`;
+  } else vhtml = `<span class="note">按「改變盒內內容」「互換」「全部清空」或點盒子，程式會把改變前後的對話逐字比對。</span>`;
+  $("verdict").innerHTML = vhtml;
+  renderLog(lines, diffIdx);
+  $("rAll").textContent = enumRes.all.toLocaleString();
+  $("rComp").textContent = enumRes.comp.toLocaleString();
+  $("rDist").textContent = enumRes.dist.toLocaleString();
+  $("rL").textContent = lines.length;
+  $("logTitle").textContent = mode === "glass" ? "對話紀錄（透明盒子：大家看得到彼此的盒子）" : "對話紀錄（私人盒子：只看得到自己的）";
+  $("cap").innerHTML = `${n} 人 × ${k} 種內容（${kinds.join("、")}）＝ <b>${k}^${n} ＝ ${enumRes.all.toLocaleString()}</b> 種配置<br>`
+    + (mode === "priv" ? `其中 <b>${enumRes.comp.toLocaleString()}</b> 種產生和現在一字不差的對話` : `透明盒子：只有 <b>${enumRes.comp.toLocaleString()}</b> 種配置產生同一份對話`);
+  $("moral").innerHTML = mode === "priv"
+    ? `<b>盒裡的東西被「約掉」了。</b>程式把 ${enumRes.all.toLocaleString()} 種盒內配置全部跑過一遍，${flux ? "連內容每句都在變也一樣，" : ""}對話紀錄只有 <b>${enumRes.dist}</b> 種。如果「甲蟲」的意思是「我盒子裡那個東西」，那個東西卻對用法毫無影響（§293）。這不是說盒子裡什麼都沒有，也不是說感覺不存在：它不是一個什麼，但也不是一個無（§304）。被拋棄的是「對象與名稱」這個模型。`
+    : `<b>對照組。</b>盒子透明時，大家能說「那不是甲蟲，是石頭」，可以互相糾正，於是 ${enumRes.all.toLocaleString()} 種配置產生 <b>${enumRes.dist.toLocaleString()}</b> 種不同的紀錄：這時「甲蟲」才像一個東西的名稱，因為有公開的判準。私人盒子裡沒有這種判準（§258、§265）。`;
+  draw();
+}
+function change(fn) { prevConfig = config.slice(); prevLog = text(runDialogue(makeEvents(talkSeed), boxesFn(prevConfig))); config = fn(config.slice()); update(); }
+function randomConfig(seed) { const r = mulberry(seed); return Array.from({ length: n }, () => kinds[Math.floor(r() * k)]); }
+let cSeed = 3;
+function reset() { setKinds(); config = randomConfig(cSeed); prevConfig = null; prevLog = null; layout(); update(); }
+
+// ---------- 互動 ----------
+$("nP").oninput = e => { n = +e.target.value; $("oP").textContent = n; reset(); };
+$("nK").oninput = e => { k = +e.target.value; $("oK").textContent = k; reset(); };
+$("mode").onchange = e => { mode = e.target.value; prevConfig = null; prevLog = null; update(); };
+$("flux").onchange = e => { flux = e.target.checked; prevConfig = null; prevLog = null; update(); };
+$("bChange").onclick = () => change(c => { let nc; do { cSeed++; nc = randomConfig(cSeed); } while (nc.join() === c.join() && Math.pow(k, n) > 1); return nc; });
+$("bSwap").onclick = () => change(c => c.slice(1).concat(c.slice(0, 1)));
+$("bEmpty").onclick = () => change(c => c.map(() => "空的"));
+$("bTalk").onclick = () => { talkSeed++; changeSeed++; prevConfig = null; prevLog = null; update(); };
+cv.addEventListener("click", e => {
+  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const g = boxGeom.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+  if (g) change(c => { c[g.i] = kinds[(kinds.indexOf(c[g.i]) + 1) % k]; return c; });
+});
+
+setKinds(); config = randomConfig(cSeed);
+new ResizeObserver(() => { layout(); }).observe(document.body);
+update();
+})();
+</script>
+</body>
+</html>

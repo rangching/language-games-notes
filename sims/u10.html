@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>注意力視覺化：「意思」的意思</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--cyan:#56B6C2;--rust:#C9644A;--moss:#8FB573;--blue:#6FA3D8}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+#proj{height:250px;flex:0 0 auto;border-bottom:1px solid var(--line)}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:5px}
+.sec p{font-size:12px;color:var(--sub);line-height:1.7}
+.sec p b{color:var(--txt);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{padding:2px 4px;text-align:right;font-family:"JetBrains Mono",monospace;font-weight:400}
+th{color:var(--sub);font-size:11px}
+td:first-child,th:first-child{text-align:left;font-family:"Noto Serif TC",serif}
+tr.top td{color:var(--cyan)}
+.bar{display:inline-block;height:8px;background:var(--cyan);border-radius:2px;vertical-align:middle}
+#bank{display:flex;flex-wrap:wrap;gap:4px}
+#bank button{min-height:28px;padding:2px 8px;font-size:13px}
+#bank button.hub{border-color:var(--amber);color:var(--amber)}
+#sense{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--sub)}
+#sense span b{font-family:"JetBrains Mono",monospace;color:var(--txt);font-weight:600}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+select,button{background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer}
+button:active{background:#262A31}
+button.on{border-color:var(--cyan);color:var(--cyan)}
+select{max-width:100%}
+.tag{position:absolute;right:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none}
+.warn{font-size:11px;color:var(--sub);line-height:1.6}
+.warn b{color:var(--amber);font-weight:600}
+#app.portrait header span{display:none}
+#app.portrait #proj{height:210px}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 8px;font-size:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>注意力視覺化：「意思」的意思</h1><span>同一個詞，上下文一換，算出來的向量就跑到別處（§43、§432）</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="上方是句子與注意力連線，下方是注意力權重矩陣；點詞可切換查詢詞"></canvas>
+    <span class="tag">點一個詞＝看它向誰發問</span></div>
+  <div id="side" class="box">
+    <canvas id="proj" aria-label="「意思」輸出向量的二維投影"></canvas>
+    <div class="sec"><h3 id="rowTitle">查詢詞的分數與權重</h3><table id="tbl"></table></div>
+    <div class="sec"><h3>「意思」的輸出向量落在哪一種用法（七個用法維度的值）</h3><div id="sense"></div></div>
+    <div class="sec"><h3>詞庫（點一下加到句尾，最多 10 個詞）</h3><div id="bank"></div></div>
+    <div class="sec"><h3>這是什麼模型？</h3>
+      <p class="warn"><b>教學用的手工小模型，不是真正的語言模型。</b>每個詞是一個 8 維向量，前 7 維是我手工標記的「用法傾向」（語意、禮數、略微、歉意、有趣、質問、好感），第 8 維標記「這是一個需要看上下文的多義詞」。Q、K 投影也是手工固定的：「意思」的 Query 會向所有用法維度發問，其他詞的 Key 就是自己的用法傾向。真正的模型有上萬維、幾十層、多個注意力頭，參數全由大量文字訓練出來，維度也沒有這麼好懂的名字。這裡沒有位置編碼，所以詞序不影響結果。</p>
+      <p>計算：第 i 個詞對第 j 個詞的分數＝q<sub>i</sub>·k<sub>j</sub>，可選擇除以 √d<sub>k</sub>＝√8≈2.83，再對每一列做 softmax 得到權重；輸出＝權重 × Value（這裡 Value 就是詞向量本身）。</p>
+    </div>
+  </div>
+  <div id="ctrl" class="box">
+    <label>預設句 <select id="preset"></select></label>
+    <button id="bScale" class="on">除以 √dₖ：開</button>
+    <button id="bAll" class="on">顯示所有預設句</button>
+    <button id="bBack">刪最後一個詞</button>
+    <button id="bClear">清空</button>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const C = { amber: "#E39A4E", cyan: "#56B6C2", rust: "#C9644A", moss: "#8FB573", blue: "#6FA3D8", wis: "#A58BD0", clay: "#B9825A", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D" };
+
+// ---------- 手工小模型：8 維詞向量 ----------
+// 前 7 維＝用法傾向；第 8 維＝「多義詞，需要看上下文」標記（只有「意思」是 1）
+const SENSES = [
+  { zh: "語意", ex: "什麼意思（字義）", col: C.blue },
+  { zh: "禮數", ex: "意思意思", col: C.clay },
+  { zh: "略微", ex: "小意思", col: C.moss },
+  { zh: "歉意", ex: "不好意思", col: C.wis },
+  { zh: "有趣", ex: "很有意思", col: C.amber },
+  { zh: "質問", ex: "你這是什麼意思", col: C.rust },
+  { zh: "好感", ex: "他對你有意思", col: "#D98BA6" }
+];
+const D = 8, HUB = 7;
+// 只寫非零的維度：[維度, 值]
+const VOCAB = {
+  "意思": [[0, .12], [1, .12], [2, .12], [3, .12], [4, .12], [5, .12], [6, .12], [7, 1]],
+  "字": [[0, 1]], "句子": [[0, .9]], "字典": [[0, 1]], "解釋": [[0, .9]], "懂": [[0, .8]], "英文": [[0, .7]], "這個": [[0, .1]], "老師": [[0, .3]],
+  "什麼": [[0, .4], [5, .6]], "到底": [[5, .9]], "嗎": [[5, .3]], "你": [[5, .35], [6, .25]],
+  "送": [[1, .7]], "紅包": [[1, .9]], "禮物": [[1, .9]], "收下": [[1, 1]], "請": [[1, .3]], "謝謝": [[1, .6], [3, .1]], "一點": [[1, .5], [2, .5]],
+  "小": [[2, 1]], "客氣": [[2, .6], [1, .3]], "別": [[2, .2]],
+  "不好": [[3, 1]], "抱歉": [[3, .9]], "遲到": [[3, .8]], "打擾": [[3, .8]], "麻煩": [[3, .6]],
+  "電影": [[4, .9]], "故事": [[4, .8]], "好玩": [[4, 1]], "很": [[4, .3]], "真": [[4, .3]],
+  "有": [[4, .5], [6, .5]], "對": [[6, .6]], "喜歡": [[6, .9]], "他": [[6, .2]], "她": [[6, .2]], "朋友": [[6, .3], [1, .2]],
+  "這": [], "是": [], "的": [], "了": [], "我": [], "個": [], "部": []
+};
+const vec = w => { const v = new Array(D).fill(0); (VOCAB[w] || []).forEach(([i, x]) => v[i] = x); return v; };
+// 固定的 Q／K 投影（8×8）：
+//   Query：q_c = 3·x_多義 + 1·x_c（c＝0…6），q_多義 = 0 → 多義詞向所有用法維度發問；一般詞只找和自己同類的詞
+//   Key：  k_c = 2·x_c（c＝0…6），k_多義 = 0           → 每個詞用自己的用法傾向回應
+const WQ = Array.from({ length: D }, (_, i) => Array.from({ length: D }, (_, j) => (i === HUB && j < HUB ? 3 : 0) + (i === j && i < HUB ? 1 : 0)));
+const WK = Array.from({ length: D }, (_, i) => Array.from({ length: D }, (_, j) => (i === j && i < HUB ? 2 : 0)));
+const mul = (x, W) => W[0].map((_, j) => x.reduce((s, xi, i) => s + xi * W[i][j], 0));
+const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+function softmax(xs) { const m = Math.max(...xs), e = xs.map(x => Math.exp(x - m)), s = e.reduce((a, b) => a + b, 0); return e.map(x => x / s); }
+
+function attend(tokens, scaled) {
+  const X = tokens.map(vec), Q = X.map(x => mul(x, WQ)), K = X.map(x => mul(x, WK));
+  const S = Q.map(q => K.map(k => dot(q, k)));
+  const Ss = S.map(r => r.map(s => scaled ? s / Math.sqrt(D) : s));
+  const A = Ss.map(softmax);
+  const O = A.map(r => X[0].map((_, d) => r.reduce((s, w, j) => s + w * X[j][d], 0)));   // Value＝詞向量本身
+  return { X, S, Ss, A, O };
+}
+// 二維投影：7 個用法維度各對應正七邊形的一個方向；「意思」的靜態向量各維相等 → 剛好投影到原點
+const DIRS = SENSES.map((_, c) => { const a = -Math.PI / 2 + c * 2 * Math.PI / 7; return [Math.cos(a), Math.sin(a)]; });
+const project = v => DIRS.reduce((p, d, c) => [p[0] + v[c] * d[0], p[1] + v[c] * d[1]], [0, 0]);
+
+const PRESETS = [
+  { name: "這個字是什麼意思", t: ["這個", "字", "是", "什麼", "意思"] },
+  { name: "你這是什麼意思", t: ["你", "這", "是", "什麼", "意思"] },
+  { name: "不好意思，我遲到了", t: ["不好", "意思", "我", "遲到", "了"] },
+  { name: "這部電影很有意思", t: ["這", "部", "電影", "很", "有", "意思"] },
+  { name: "小意思，別客氣", t: ["小", "意思", "別", "客氣"] },
+  { name: "送個紅包意思意思", t: ["送", "個", "紅包", "意思", "意思"] },
+  { name: "他對你有意思", t: ["他", "對", "你", "有", "意思"] },
+  { name: "只有「意思」一個詞", t: ["意思"] }
+];
+
+// ---------- 狀態 ----------
+let tokens = PRESETS[0].t.slice(), sel = 4, scaled = true, showAll = true, res = null;
+const app = $("app"), cv = $("cv"), ctx = cv.getContext("2d"), pc = $("proj"), px = pc.getContext("2d");
+const firstHub = () => tokens.indexOf("意思");
+
+function fit(c) {
+  const r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  c.width = Math.max(1, r.width * dpr | 0); c.height = Math.max(1, r.height * dpr | 0);
+  c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0); return { w: r.width, h: r.height };
+}
+let SW = 0, SH = 0, PW = 0, PH = 0, tokBoxes = [], cellGeom = null;
+function layout() {
+  app.classList.toggle("portrait", innerHeight > innerWidth * 1.05);
+  ({ w: SW, h: SH } = fit(cv)); ({ w: PW, h: PH } = fit(pc)); draw();
+}
+function compute() { res = tokens.length ? attend(tokens, scaled) : null; if (sel >= tokens.length) sel = tokens.length - 1; }
+
+// ---------- 上：句子與連線；下：權重矩陣 ----------
+function drawStage() {
+  ctx.clearRect(0, 0, SW, SH); tokBoxes = []; cellGeom = null;
+  if (!res) { ctx.fillStyle = C.sub; ctx.font = "14px 'Noto Serif TC',serif"; ctx.textAlign = "center"; ctx.fillText("句子是空的：從右側詞庫點詞，或選一個預設句", SW / 2, SH / 2); return; }
+  const n = tokens.length, A = res.A;
+  // 句子列
+  const fs = Math.max(12, Math.min(18, SW / (n * 3.2)));
+  ctx.font = `600 ${fs}px 'Noto Serif TC',serif`;
+  const gap = 8, widths = tokens.map(t => ctx.measureText(t).width + 16), tot = widths.reduce((a, b) => a + b, 0) + gap * (n - 1);
+  const sc = Math.min(1, (SW - 16) / tot);
+  let x = (SW - tot * sc) / 2; const rowY = Math.max(64, SH * 0.27), bh = fs + 12;
+  tokens.forEach((t, i) => { const w = widths[i] * sc; tokBoxes.push({ x, y: rowY - bh / 2, w, h: bh, cx: x + w / 2 }); x += w + gap * sc; });
+  // 連線：從查詢詞（sel）往上拱到每一個詞，粗細與透明度＝權重
+  const r = A[sel], from = tokBoxes[sel];
+  r.forEach((w, j) => {
+    const to = tokBoxes[j];
+    if (j === sel) { ctx.strokeStyle = C.cyan; ctx.globalAlpha = .25 + .75 * w; ctx.lineWidth = 1 + 9 * w; ctx.beginPath(); ctx.ellipse(from.cx, from.y - 10, 9, 10, 0, Math.PI * 0.15, Math.PI * 0.85, true); ctx.stroke(); }
+    else {
+      const h = Math.min(rowY - 26, 18 + Math.abs(to.cx - from.cx) * 0.38);
+      ctx.strokeStyle = C.cyan; ctx.globalAlpha = .15 + .85 * w; ctx.lineWidth = .8 + 10 * w;
+      ctx.beginPath(); ctx.moveTo(from.cx, from.y); ctx.bezierCurveTo(from.cx, from.y - h, to.cx, to.y - h, to.cx, to.y); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  });
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  tokBoxes.forEach((b, i) => {
+    const hub = tokens[i] === "意思";
+    ctx.fillStyle = i === sel ? "rgba(86,182,194,.18)" : "#1B1E24"; ctx.strokeStyle = i === sel ? C.cyan : hub ? C.amber : C.line; ctx.lineWidth = i === sel ? 2 : 1;
+    roundRect(ctx, b.x, b.y, b.w, b.h, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = hub ? C.amber : C.txt; ctx.font = `600 ${fs * Math.min(1, sc + .15)}px 'Noto Serif TC',serif`; ctx.fillText(tokens[i], b.cx, b.y + b.h / 2 + 1);
+    ctx.fillStyle = C.cyan; ctx.font = `${Math.max(10, fs * .62)}px 'JetBrains Mono',monospace`;
+    ctx.fillText((r[i] * 100).toFixed(0) + "%", b.cx, b.y + b.h + 10);
+  });
+  // 權重矩陣
+  const top = rowY + bh / 2 + 30, availH = SH - top - 22, labW = Math.min(64, SW * 0.16);
+  const cell = Math.max(8, Math.min((SW - labW - 20) / n, (availH - 28) / n, 64));
+  const mx = (SW - labW - cell * n) / 2 + labW, my = top + 26;
+  cellGeom = { mx, my, cell, n };
+  ctx.fillStyle = C.sub; ctx.font = "11px 'Noto Serif TC',serif"; ctx.textAlign = "left";
+  ctx.fillText("權重矩陣：第 i 列＝第 i 個詞把注意力分給誰（每列加起來＝1）", 8, top);
+  const lf = Math.max(9, Math.min(13, cell * .38));
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const w = A[i][j];
+    ctx.fillStyle = `rgba(86,182,194,${.06 + .94 * w})`; ctx.fillRect(mx + j * cell + 1, my + i * cell + 1, cell - 2, cell - 2);
+    if (cell >= 26) { ctx.fillStyle = w > .5 ? "#0E0F12" : C.txt; ctx.font = `${lf * .85}px 'JetBrains Mono',monospace`; ctx.textAlign = "center"; ctx.fillText(w.toFixed(2), mx + j * cell + cell / 2, my + i * cell + cell / 2 + 1); }
+  }
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 2; ctx.strokeRect(mx + .5, my + sel * cell + .5, cell * n - 1, cell - 1);
+  ctx.font = `${lf}px 'Noto Serif TC',serif`;
+  tokens.forEach((t, i) => {
+    ctx.fillStyle = i === sel ? C.amber : C.sub; ctx.textAlign = "right"; ctx.fillText(t, mx - 6, my + i * cell + cell / 2 + 1);
+    ctx.save(); ctx.translate(mx + i * cell + cell / 2, my - 4); ctx.textAlign = "center"; ctx.fillStyle = C.sub; ctx.fillText(t.length > 2 && cell < 30 ? t[0] : t, 0, -2); ctx.restore();
+  });
+}
+function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+
+// ---------- 二維投影 ----------
+function hubOut(tks) { const i = tks.indexOf("意思"); if (i < 0) return null; return attend(tks, scaled).O[i]; }
+function drawProj() {
+  px.clearRect(0, 0, PW, PH);
+  const cx = PW / 2, cy = PH / 2 + 6, R = Math.min(PW * .36, PH * .38), S = R / 0.8;
+  px.fillStyle = C.sub; px.font = "11px 'Noto Serif TC',serif"; px.textAlign = "left"; px.textBaseline = "alphabetic";
+  px.fillText("「意思」輸出向量的二維投影", 8, 15);
+  px.strokeStyle = C.line; px.lineWidth = 1; px.beginPath(); px.arc(cx, cy, R, 0, 7); px.stroke();
+  DIRS.forEach((d, c) => {
+    px.strokeStyle = "rgba(237,230,214,.08)"; px.beginPath(); px.moveTo(cx, cy); px.lineTo(cx + d[0] * R, cy + d[1] * R); px.stroke();
+    px.fillStyle = SENSES[c].col; px.font = "600 12px 'Noto Serif TC',serif"; px.textAlign = "center"; px.textBaseline = "middle";
+    px.fillText(SENSES[c].zh, cx + d[0] * (R + 16), cy + d[1] * (R + 13));
+  });
+  // 靜態詞向量（沒有上下文）：七個方向平均 → 原點
+  px.strokeStyle = C.sub; px.lineWidth = 1.5; px.beginPath(); px.arc(cx, cy, 5, 0, 7); px.stroke();
+  px.fillStyle = C.sub; px.font = "10px 'Noto Serif TC',serif"; px.fillText("靜態向量", cx, cy + 15);
+  const dotAt = (v, col, big, label) => {
+    const p = project(v), x = cx + p[0] * S, y = cy + p[1] * S;
+    px.globalAlpha = big ? 1 : .55; px.fillStyle = col; px.beginPath(); px.arc(x, y, big ? 7 : 4.5, 0, 7); px.fill();
+    if (big) { px.strokeStyle = C.txt; px.lineWidth = 1.5; px.stroke(); px.strokeStyle = col; px.setLineDash([3, 3]); px.beginPath(); px.moveTo(cx, cy); px.lineTo(x, y); px.stroke(); px.setLineDash([]); }
+    if (label) { px.fillStyle = C.txt; px.font = `${big ? 600 : 400} 10px 'Noto Serif TC',serif`; px.textAlign = x > cx ? "left" : "right"; px.fillText(label, x + (x > cx ? 8 : -8), y - (big ? 0 : 8)); }
+    px.globalAlpha = 1;
+  };
+  const best = v => { let b = 0; for (let c = 1; c < 7; c++) if (v[c] > v[b]) b = c; return b; };
+  if (showAll) PRESETS.forEach(p => { const v = hubOut(p.t); if (v && p.t.length > 1) dotAt(v, SENSES[best(v)].col, false, PW > 300 ? p.name.replace(/，.*/, "") : ""); });
+  const v = res && firstHub() >= 0 ? res.O[firstHub()] : null;
+  if (v) dotAt(v, SENSES[best(v)].col, true, "目前的句子");
+  else { px.fillStyle = C.sub; px.font = "11px 'Noto Serif TC',serif"; px.textAlign = "center"; px.fillText("句子裡沒有「意思」", cx, PH - 10); }
+}
+
+// ---------- 讀數 ----------
+function readout() {
+  if (!res) { $("tbl").innerHTML = ""; $("sense").innerHTML = ""; return; }
+  const i = sel, n = tokens.length;
+  $("rowTitle").textContent = `查詢詞「${tokens[i]}」向每個詞發問：分數 → 權重（${scaled ? "除以 √8" : "不除"}）`;
+  const order = [...Array(n).keys()].sort((a, b) => res.A[i][b] - res.A[i][a]);
+  $("tbl").innerHTML = `<tr><th>Key 詞</th><th>q·k</th><th>${scaled ? "÷√8" : "不縮放"}</th><th>權重</th><th style="width:34%"></th></tr>` +
+    order.map((j, r) => `<tr class="${r === 0 ? "top" : ""}"><td>${tokens[j]}${j === i ? "（自己）" : ""}</td><td>${res.S[i][j].toFixed(2)}</td><td>${res.Ss[i][j].toFixed(2)}</td><td>${(res.A[i][j] * 100).toFixed(1)}%</td><td style="text-align:left"><span class="bar" style="width:${(res.A[i][j] * 100).toFixed(1)}%"></span></td></tr>`).join("");
+  const h = firstHub();
+  if (h < 0) { $("sense").innerHTML = "<span>句子裡沒有「意思」。</span>"; return; }
+  const o = res.O[h], mxv = Math.max(...o.slice(0, 7)), mnv = Math.min(...o.slice(0, 7));
+  if (mxv - mnv < 1e-9) { $("sense").innerHTML = SENSES.map(s => `<span>${s.zh} <b>${o[0].toFixed(2)}</b></span>`).join("") + `<span style="flex-basis:100%">七個用法一樣大：沒有上下文可以發問，「意思」只好停在靜態向量（原點），哪一種用法都說不上。</span>`; return; }
+  $("sense").innerHTML = SENSES.map((s, c) => `<span style="${o[c] === mxv ? `color:${s.col}` : ""}">${s.zh} <b style="${o[c] === mxv ? `color:${s.col}` : ""}">${o[c].toFixed(2)}</b></span>`).join("") +
+    `<span style="flex-basis:100%">最接近：<b style="color:${SENSES[o.indexOf(mxv)].col}">${SENSES[o.indexOf(mxv)].zh}</b>（例：${SENSES[o.indexOf(mxv)].ex}）</span>`;
+}
+function draw() { compute(); drawStage(); drawProj(); readout(); }
+
+// ---------- 控制 ----------
+$("preset").innerHTML = PRESETS.map((p, i) => `<option value="${i}">${p.name}</option>`).join("") + `<option value="-1" hidden>（自己組的句子）</option>`;
+$("preset").onchange = e => { const p = PRESETS[+e.target.value]; if (!p) return; tokens = p.t.slice(); sel = Math.max(0, firstHub()); draw(); };
+$("bank").innerHTML = Object.keys(VOCAB).map(w => `<button class="${w === "意思" ? "hub" : ""}" data-w="${w}">${w}</button>`).join("");
+$("bank").addEventListener("click", e => {
+  const b = e.target.closest("[data-w]"); if (!b || tokens.length >= 10) return;
+  tokens.push(b.dataset.w); $("preset").value = "-1";
+  sel = b.dataset.w === "意思" || firstHub() < 0 ? tokens.length - 1 : firstHub(); draw();
+});
+$("bBack").onclick = () => { tokens.pop(); $("preset").value = "-1"; if (firstHub() >= 0) sel = firstHub(); draw(); };
+$("bClear").onclick = () => { tokens = []; sel = 0; $("preset").value = "-1"; draw(); };
+$("bScale").onclick = e => { scaled = !scaled; e.target.textContent = "除以 √dₖ：" + (scaled ? "開" : "關"); e.target.classList.toggle("on", scaled); draw(); };
+$("bAll").onclick = e => { showAll = !showAll; e.target.classList.toggle("on", showAll); draw(); };
+cv.addEventListener("click", e => {
+  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const k = tokBoxes.findIndex(b => x >= b.x - 4 && x <= b.x + b.w + 4 && y >= b.y - 6 && y <= b.y + b.h + 16);
+  if (k >= 0) { sel = k; draw(); return; }
+  if (cellGeom) { const { mx, my, cell, n } = cellGeom, i = Math.floor((y - my) / cell); if (x >= mx - 70 && x <= mx + cell * n && i >= 0 && i < n) { sel = i; draw(); } }
+});
+
+new ResizeObserver(layout).observe(document.body);
+})();
+</script>
+</body>
+</html>

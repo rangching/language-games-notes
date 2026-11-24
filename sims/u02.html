@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>建築工人語言模擬器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--blue:#6FA3D8;--moss:#8FB573;--rust:#C9644A}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+#read{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:6px}
+#calls{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+#calls button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;min-height:58px;color:var(--amber);border-color:rgba(227,154,78,.5);font-size:16px;font-weight:600}
+#calls button small{font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--sub);font-weight:400}
+#mat{display:block;width:100%;height:150px}
+#log{font-size:12px;line-height:1.7;color:#D8D1C1;max-height:9em;overflow-y:auto}
+#log .ok{color:var(--moss)} #log .bad{color:var(--rust)} #log .tr{color:var(--blue)}
+#msg{font-size:13px;line-height:1.7;color:#D8D1C1}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+select,button{background:#1E2128;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:34px;cursor:pointer}
+button:active{background:#262A31}
+button:disabled{opacity:.45;cursor:default}
+.cap{position:absolute;left:10px;top:8px;font-size:12px;color:var(--sub);pointer-events:none;line-height:1.6}
+.cap b{color:var(--amber)}
+#app.portrait header span{display:none}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait #ctrl button,#app.portrait #ctrl select{padding:4px 8px;font-size:12px}
+#app.portrait #read b{font-size:13px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>建築工人語言模擬器</h1><span>§2：A 喊出詞，B 依訓練過的方式搬來石頭。只有四個詞的完整語言</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="工地：左邊是石料堆，右邊是照藍圖搭建的位置，中間是助手 B"></canvas><div class="cap" id="cap"></div></div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small>已喊幾次</small><b id="rN">0</b></div>
+      <div><small>搬對</small><b id="rOk" style="color:var(--moss)">0</b></div>
+      <div><small>藍圖進度</small><b id="rP">0/0</b></div>
+      <div><small>最少要喊</small><b id="rMin">—</b></div>
+    </div>
+    <div class="sec"><h3>你是 A：喊一個詞（也可按鍵 1–4）</h3>
+      <div id="calls">
+        <button data-w="0">方石<small>Würfel</small></button>
+        <button data-w="1">柱石<small>Säule</small></button>
+        <button data-w="2">石板<small>Platte</small></button>
+        <button data-w="3">石樑<small>Balken</small></button>
+      </div></div>
+    <div class="sec"><h3 id="matT">B 腦中的對應：聽到這個詞 → 拿每種石頭的機率（softmax）</h3><canvas id="mat" aria-label="4×4 機率表"></canvas></div>
+    <div class="sec"><h3>發生了什麼</h3><div id="msg"></div><div id="log"></div></div>
+  </div>
+  <div id="ctrl" class="box">
+    <label>藍圖 <select id="bp"><option value="0">門</option><option value="1">矮牆</option><option value="2">小塔</option></select></label>
+    <label>助手 B <select id="mode"><option value="t">受過訓練</option><option value="u">還沒受訓</option></select></label>
+    <button id="bTeach">指著石頭教一次（§6）</button>
+    <button id="bTeach10">連教 10 次</button>
+    <button id="bAuto">照藍圖自動喊</button>
+    <button id="bReset">清空工地</button>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const C = { amber: "#E39A4E", clay: "#B9825A", blue: "#6FA3D8", moss: "#8FB573", rust: "#C9644A", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D" };
+const WORDS = ["方石", "柱石", "石板", "石樑"], DE = ["Würfel", "Säule", "Platte", "Balken"];
+// 石頭尺寸（格）：方石 1×1、柱石 1×3、石板 3×0.4、石樑 3×0.7
+const SIZE = [[1, 1], [1, 3], [3, 0.4], [3, 0.7]];
+const STONE_COL = ["#B9825A", "#A99E86", "#7F8796", "#8A6B4E"];
+// 藍圖：依 A 需要的先後順序排列，每塊 {s 石種, x, y}（y 從地面往上）
+const BLUEPRINTS = [
+  { name: "門", parts: [{ s: 1, x: 0, y: 0 }, { s: 1, x: 2, y: 0 }, { s: 3, x: 0, y: 3 }] },
+  { name: "矮牆", parts: [{ s: 0, x: 0, y: 0 }, { s: 0, x: 1, y: 0 }, { s: 0, x: 2, y: 0 }, { s: 2, x: 0, y: 1 }] },
+  { name: "小塔", parts: [{ s: 0, x: 0, y: 0 }, { s: 0, x: 2, y: 0 }, { s: 2, x: 0, y: 1 }, { s: 1, x: 1, y: 1.4 }, { s: 3, x: 0, y: 4.4 }] }
+];
+const BETA = 1, ETA = 0.9;
+const app = $("app"), cv = $("cv"), ctx = cv.getContext("2d"), mc = $("mat"), mx = mc.getContext("2d");
+
+// ---------- B 的「訓練」：一張 4×4 的關聯強度表，選石頭用 softmax ----------
+let L = [];                               // L[詞][石]：關聯強度（logit）
+const softmax = row => { const m = Math.max(...row), e = row.map(v => Math.exp(BETA * (v - m))), s = e.reduce((a, b) => a + b, 0); return e.map(v => v / s); };
+function resetB(mode) {
+  L = Array.from({ length: 4 }, () => [0, 0, 0, 0]);
+  if (mode === "t") for (let k = 0; k < 40; k++) teach(k % 4, true);   // 受過訓練：每個詞已經教過 10 次
+}
+// 實指教學（§6）：老師指著石頭 s、說出詞 w → 增加 w→s 的關聯，壓低其他（對數似然的梯度一步）
+function teach(w, silent) {
+  const P = softmax(L[w]);
+  for (let j = 0; j < 4; j++) L[w][j] += ETA * ((j === w ? 1 : 0) - P[j]);
+  if (!silent) { teachCount++; log(`<span class="tr">教學 #${teachCount}：老師指著「${WORDS[w]}」說出這個詞。B 聽到「${WORDS[w]}」會拿對的機率變成 ${(softmax(L[w])[w] * 100).toFixed(0)}%。</span>`); }
+}
+function pick(w) { const P = softmax(L[w]); let r = Math.random(), k = 0; while (k < 3 && r >= P[k]) { r -= P[k]; k++; } return k; }
+
+// ---------- 工地狀態 ----------
+let bp = BLUEPRINTS[0], placed = [], calls = 0, ok = 0, teachCount = 0, queue = [], anim = null, auto = false;
+function log(html) { const d = document.createElement("div"); d.innerHTML = html; $("log").prepend(d); }
+function need() { return placed.length < bp.parts.length ? bp.parts[placed.length].s : null; }
+function call(w) {
+  if (placed.length >= bp.parts.length) { $("msg").textContent = "藍圖已經蓋完了。換一張藍圖或清空工地。"; return; }
+  queue.push(w); calls++; if (!anim) next();
+  readout();
+}
+function next() {
+  if (!queue.length) { anim = null; if (auto) autoStep(); return; }
+  const w = queue.shift(), s = pick(w), want = need();
+  const P = softmax(L[w]);
+  anim = { w, s, want, t0: performance.now(), dur: 1300, P };
+  $("msg").innerHTML = `A 喊：「<b style="color:var(--amber)">${WORDS[w]}！</b>」B 依它學過的對應去拿石頭……`;
+}
+function finish(a) {
+  const right = a.s === a.w, fits = a.s === a.want;
+  if (fits) { placed.push(bp.parts[placed.length]); ok++; }
+  if (right) log(`<span class="ok">喊「${WORDS[a.w]}」→ B 搬來${WORDS[a.s]}（拿對的機率 ${(a.P[a.w] * 100).toFixed(0)}%）${fits ? "，放上去了" : "，但藍圖這一步要的是" + WORDS[a.want] + "：A 喊錯了，石頭退回"}</span>`);
+  else log(`<span class="bad">喊「${WORDS[a.w]}」→ B 搬來${WORDS[a.s]}（拿對的機率只有 ${(a.P[a.w] * 100).toFixed(0)}%）${fits ? "，碰巧是藍圖要的" : "，退回"}</span>`);
+  if (placed.length === bp.parts.length) $("msg").innerHTML = `<b style="color:var(--moss)">「${bp.name}」完成。</b>一共喊了 ${calls} 次；最少只要 ${bp.parts.length} 次（一塊石頭一聲）。`;
+  else $("msg").innerHTML = right ? "B 照訓練過的方式反應了：這個詞在這裡的「意義」，就是這套做法。" : (mode === "u" ? "B 聽得見聲音，但「石板」對它還不是一個指令：沒有訓練，就沒有這套用法。" : "B 拿錯了。再教幾次，或再喊一次。");
+  anim = null; readout(); next();
+}
+function autoStep() {
+  const w = need(); if (w === null) { auto = false; $("bAuto").textContent = "照藍圖自動喊"; return; }
+  if (calls > 60) { auto = false; $("bAuto").textContent = "照藍圖自動喊"; $("msg").textContent = "喊了 60 次還蓋不完：B 沒有學會這套語言。"; return; }
+  setTimeout(() => { if (auto) call(w); }, 250);
+}
+
+// ---------- 繪圖 ----------
+let W = 0, H = 0, MW = 0, MH = 0;
+function fit(c) { const r = c.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2); c.width = r.width * d | 0; c.height = r.height * d | 0; c.getContext("2d").setTransform(d, 0, 0, d, 0, 0); return [r.width, r.height]; }
+function layout() { app.classList.toggle("portrait", innerHeight > innerWidth * 1.05); [W, H] = fit(cv); [MW, MH] = fit(mc); drawMat(); }
+function stoneRect(g, s, x, y, u, alpha, outline) {      // x,y：左下角（畫面座標）
+  const [w, h] = SIZE[s];
+  g.globalAlpha = alpha;
+  if (outline) { g.setLineDash([4, 4]); g.strokeStyle = "rgba(237,230,214,.35)"; g.lineWidth = 1; g.strokeRect(x, y - h * u, w * u, h * u); g.setLineDash([]); }
+  else { g.fillStyle = STONE_COL[s]; g.fillRect(x, y - h * u, w * u, h * u); g.strokeStyle = "#0E0F12"; g.lineWidth = 1.5; g.strokeRect(x, y - h * u, w * u, h * u);
+    g.fillStyle = "rgba(255,255,255,.08)"; g.fillRect(x, y - h * u, w * u, Math.min(4, h * u * 0.3)); }
+  g.globalAlpha = 1;
+}
+function person(g, x, y, u, col, label, bubble) {
+  g.strokeStyle = col; g.lineWidth = 2.2; g.lineCap = "round";
+  g.beginPath(); g.arc(x, y - 2.6 * u, 0.32 * u, 0, 7); g.stroke();
+  g.beginPath(); g.moveTo(x, y - 2.25 * u); g.lineTo(x, y - 1.1 * u); g.lineTo(x - 0.4 * u, y); g.moveTo(x, y - 1.1 * u); g.lineTo(x + 0.4 * u, y);
+  g.moveTo(x - 0.5 * u, y - 1.8 * u); g.lineTo(x + 0.5 * u, y - 1.8 * u); g.stroke();
+  g.fillStyle = col; g.font = `600 ${Math.max(11, u * 0.42)}px 'JetBrains Mono',monospace`; g.textAlign = "center"; g.fillText(label, x, y + 0.6 * u);
+  if (bubble) {
+    g.font = `600 ${Math.max(13, u * 0.5)}px 'Noto Serif TC',serif`;
+    const tw = g.measureText(bubble).width + 14, bx = x - tw / 2, by = y - 3.9 * u;
+    g.fillStyle = "rgba(227,154,78,.18)"; g.strokeStyle = C.amber; g.lineWidth = 1;
+    g.beginPath(); g.roundRect ? g.roundRect(bx, by - 0.55 * u, tw, 0.8 * u, 6) : g.rect(bx, by - 0.55 * u, tw, 0.8 * u); g.fill(); g.stroke();
+    g.fillStyle = C.amber; g.fillText(bubble, x, by);
+  }
+}
+function draw(now) {
+  if (!W) { requestAnimationFrame(draw); return; }
+  ctx.clearRect(0, 0, W, H);
+  const capH = 44, u = Math.max(14, Math.min((W - 40) / 14, (H - capH - 60) / 7.2)), ground = Math.min(H - 34, capH + 30 + 7.4 * u);
+  $("cap").innerHTML = `藍圖：<b>${bp.name}</b>　需要的順序：${bp.parts.map((p, i) => `<span style="color:${i < placed.length ? "#8FB573" : i === placed.length ? "#E39A4E" : "#9C978B"}">${WORDS[p.s]}</span>`).join("→")}`;
+  // 地面
+  ctx.strokeStyle = C.clay; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(10, ground); ctx.lineTo(W - 10, ground); ctx.stroke();
+  // 石料堆（左）
+  const pileX = 14, siteX = W - 3.6 * u - 16, aX = siteX - 1.4 * u;
+  // 堆法：石樑在地上，石板疊在上面，再放方石與一根柱石
+  const pu = u * 0.85;
+  stoneRect(ctx, 3, pileX, ground, pu, 0.95); stoneRect(ctx, 2, pileX, ground - 0.7 * pu, pu, 0.95);
+  stoneRect(ctx, 0, pileX + 0.1 * pu, ground - 1.1 * pu, pu, 0.95); stoneRect(ctx, 1, pileX + 1.7 * pu, ground - 1.1 * pu, pu, 0.95);
+  ctx.fillStyle = C.sub; ctx.font = "11px 'Noto Serif TC',serif"; ctx.textAlign = "left"; ctx.fillText("石料堆", pileX, ground + 16);
+  // 藍圖虛線與已放的石頭（右）
+  bp.parts.forEach((p, i) => { if (i >= placed.length) stoneRect(ctx, p.s, siteX + p.x * u, ground - p.y * u, u, 1, true); });
+  placed.forEach(p => stoneRect(ctx, p.s, siteX + p.x * u, ground - p.y * u, u, 1));
+  if (placed.length < bp.parts.length) { const p = bp.parts[placed.length], [w, h] = SIZE[p.s]; ctx.strokeStyle = C.amber; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.strokeRect(siteX + p.x * u - 2, ground - (p.y + h) * u - 2, w * u + 4, h * u + 4); ctx.setLineDash([]); }
+  ctx.fillStyle = C.sub; ctx.textAlign = "right"; ctx.fillText("工地（照藍圖）", W - 14, ground + 16);
+  // A 與 B
+  let bx = pileX + 3.6 * u, carry = null, bubble = null, shrug = false;
+  if (anim) {
+    const k = Math.min(1, (now - anim.t0) / anim.dur);
+    bubble = WORDS[anim.w] + "！";
+    const outX = pileX + 3.6 * u, inX = aX - 1.6 * u;
+    if (k < 0.15) bx = outX; else if (k < 0.3) { bx = outX; carry = anim.s; } else { const q = (k - 0.3) / 0.7; bx = outX + (inX - outX) * q; carry = anim.s; }
+    shrug = mode === "u" && anim.s !== anim.w;
+    if (k >= 1) finish(anim);
+  }
+  person(ctx, aX, ground, u * 0.8, C.amber, "A", bubble);
+  person(ctx, bx, ground, u * 0.8, C.blue, "B", null);
+  if (carry !== null) stoneRect(ctx, carry, bx - SIZE[carry][0] * u * 0.3, ground - 2.0 * u * 0.8, u * 0.6, 1);
+  if (shrug) { ctx.fillStyle = C.rust; ctx.font = `600 ${Math.max(12, u * 0.5)}px 'JetBrains Mono',monospace`; ctx.textAlign = "center"; ctx.fillText("?", bx + 0.5 * u, ground - 3.1 * u * 0.8); }
+  requestAnimationFrame(draw);
+}
+function drawMat() {
+  if (!MW) return;
+  mx.clearRect(0, 0, MW, MH);
+  const lw = 50, th = 18, cw = (MW - lw) / 4, ch = (MH - th) / 4;
+  mx.font = "11px 'Noto Serif TC',serif"; mx.textAlign = "center"; mx.fillStyle = C.sub;
+  WORDS.forEach((w, j) => mx.fillText("拿" + w, lw + cw * (j + 0.5), 12));
+  for (let i = 0; i < 4; i++) {
+    const P = softmax(L[i]);
+    mx.textAlign = "right"; mx.fillStyle = C.amber; mx.fillText("「" + WORDS[i] + "」", lw - 4, th + ch * (i + 0.6));
+    for (let j = 0; j < 4; j++) {
+      const x = lw + cw * j, y = th + ch * i;
+      mx.fillStyle = i === j ? `rgba(143,181,115,${0.1 + 0.85 * P[j]})` : `rgba(201,100,74,${0.08 + 0.85 * P[j]})`;
+      mx.fillRect(x + 2, y + 2, cw - 4, ch - 4);
+      mx.fillStyle = C.txt; mx.textAlign = "center"; mx.font = "12px 'JetBrains Mono',monospace";
+      mx.fillText((P[j] * 100).toFixed(0) + "%", x + cw / 2, y + ch * 0.62);
+      mx.font = "11px 'Noto Serif TC',serif";
+    }
+  }
+}
+function readout() {
+  $("rN").textContent = calls; $("rOk").textContent = ok;
+  $("rP").textContent = placed.length + "/" + bp.parts.length; $("rMin").textContent = bp.parts.length;
+  $("matT").textContent = mode === "u" && teachCount === 0 ? "B 腦中的對應：還沒受訓，四種石頭機率相同（各 25%）" : `B 腦中的對應：聽到這個詞 → 拿每種石頭的機率（已教 ${mode === "t" ? "預設 40 + " : ""}${teachCount} 次）`;
+  drawMat();
+}
+
+// ---------- 互動 ----------
+let mode = "t";
+$("calls").addEventListener("click", e => { const b = e.target.closest("[data-w]"); if (b) call(+b.dataset.w); });
+addEventListener("keydown", e => { if ("1234".includes(e.key) && e.key) call(+e.key - 1); });
+function resetSite() { placed = []; calls = 0; ok = 0; queue = []; anim = null; auto = false; $("bAuto").textContent = "照藍圖自動喊"; $("log").innerHTML = ""; readout(); }
+$("bp").onchange = e => { bp = BLUEPRINTS[+e.target.value]; resetSite(); $("msg").textContent = `新藍圖「${bp.name}」：照順序喊出需要的石頭。`; };
+$("mode").onchange = e => { mode = e.target.value; teachCount = 0; resetB(mode); resetSite();
+  $("msg").textContent = mode === "u" ? "換成一個沒受過訓練的 B。試著喊「石板！」看看會怎樣，再用「指著石頭教」一次次訓練它。" : "B 已經受過訓練：聽到詞就搬來對應的石頭。"; };
+$("bTeach").onclick = () => { teach(teachCount % 4); readout(); };
+$("bTeach10").onclick = () => { for (let k = 0; k < 10; k++) teach(teachCount % 4); readout(); };
+$("bAuto").onclick = () => { auto = !auto; $("bAuto").textContent = auto ? "停止" : "照藍圖自動喊"; if (auto && !anim) autoStep(); };
+$("bReset").onclick = () => { resetSite(); $("msg").textContent = "工地清空了。"; };
+
+resetB("t"); readout();
+$("msg").textContent = "你是建築工人 A，B 是你的助手。照上方藍圖的順序喊出石頭的名字，B 會搬來。";
+new ResizeObserver(layout).observe(document.body);
+requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

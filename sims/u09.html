@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>面相翻轉</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--blue:#6FA3D8;--moss:#8FB573;--wis:#A58BD0;--rust:#C9644A}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage;display:flex;flex-direction:column}
+#fig{flex:1;min-height:0;width:100%;display:block;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#ask{display:flex;gap:8px;justify-content:center;align-items:center;padding:6px 8px 10px;flex-wrap:wrap}
+#ask button{min-width:92px;font-size:15px;min-height:40px}
+#ask .msg{font-size:12px;color:var(--sub);width:100%;text-align:center}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+#read{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:6px;display:flex;justify-content:space-between;gap:6px;align-items:center;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+td,th{padding:3px 4px;text-align:left;border-bottom:1px solid rgba(46,51,61,.6);overflow-wrap:anywhere}
+th{font-weight:400;color:var(--sub);font-size:11px}
+td.num{font-family:"JetBrains Mono",monospace;text-align:right}
+.bar{display:inline-block;height:8px;border-radius:4px;vertical-align:middle}
+.note{font-size:12px;color:var(--sub);line-height:1.7}
+.note b{color:var(--txt);font-weight:600}
+#necker{display:block;width:100%;height:auto;touch-action:manipulation;cursor:pointer}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+label.grow{flex:1 1 120px;min-width:110px}
+input[type=range]{flex:1;accent-color:var(--wis);height:28px;min-width:60px}
+output{font-family:"JetBrains Mono",monospace;color:var(--txt);min-width:14px}
+select,button{background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer}
+button:active{background:#262A31}
+button:disabled{opacity:.4;cursor:default}
+button.main{border-color:var(--wis);color:#CDB9F0}
+button.on{border-color:var(--amber);color:var(--amber)}
+.ok{color:var(--moss)}.bad{color:var(--rust)}
+#app.portrait header span{display:none}
+#app.portrait #read b{font-size:13px}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 7px;font-size:12px}
+#app.portrait #ask button{min-height:36px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>面相翻轉</h1><span>圖沒變，我卻看得不一樣（PPF §113、§118、§125）</span></header>
+  <div id="stage" class="box">
+    <svg id="fig" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet" aria-label="原創線稿的鴨兔圖與語境提示"></svg>
+    <div id="ask"><span class="msg" id="msg">按「開始一輪」：先出現語境，接著出現一張圖，請立刻選你第一眼看到的。</span>
+      <button id="aDuck" disabled>鴨</button><button id="aRabbit" disabled>兔</button></div>
+  </div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small>你的紀錄</small><b id="rN">0</b></div>
+      <div><small>鴨群語境看成鴨</small><b id="rD">—</b></div>
+      <div><small>兔群語境看成鴨</small><b id="rR">—</b></div>
+      <div><small>檢定 p 值</small><b id="rP" style="color:var(--wis)">—</b></div>
+    </div>
+    <div class="sec"><h3><span id="statTitle">依語境分組（你的紀錄）</span><span><select id="src"><option value="me">你的紀錄</option><option value="sim">模擬受試者</option></select></span></h3>
+      <table><colgroup><col style="width:34%"><col style="width:13%"><col style="width:13%"><col style="width:40%"></colgroup>
+      <thead><tr><th>語境</th><th style="text-align:right">鴨</th><th style="text-align:right">兔</th><th>看成鴨的比例</th></tr></thead><tbody id="tb"></tbody></table>
+      <p class="note" id="test" style="margin-top:6px"></p>
+    </div>
+    <div class="sec" id="simSec" style="display:none"><h3><span>模擬一群受試者（不是真實資料）</span></h3>
+      <label class="grow">每種語境人數 <input id="sN" type="range" min="5" max="200" step="5" value="30"><output id="oN">30</output></label>
+      <label class="grow">語境影響強度 <input id="sS" type="range" min="0" max="0.4" step="0.02" value="0.15"><output id="oS">0.15</output></label>
+      <button id="bSim">重新抽樣</button>
+    </div>
+    <div class="sec"><h3><span>內克方塊：點方塊切換讀法</span><span><label>方塊數 <input id="nC" type="range" min="1" max="4" step="1" value="2" style="width:70px;flex:none"><output id="oC">2</output></label></span></h3>
+      <svg id="necker" viewBox="0 0 400 150" aria-label="內克方塊，點擊切換哪一面在前"></svg>
+      <p class="note" id="nkInfo"></p>
+    </div>
+    <div class="sec"><p class="note" id="moral"></p></div>
+  </div>
+  <div id="ctrl" class="box">
+    <button id="bStart" class="main">開始一輪</button>
+    <label>語境 <select id="ctxSel"><option value="rand">隨機（建議）</option><option value="duckRow">一排鴨子</option><option value="rabbitRow">一排兔子</option><option value="duckText">文字：池塘裡游著……</option><option value="rabbitText">文字：中秋節，月亮上的……</option><option value="none">不給語境</option></select></label>
+    <button id="bParts">標出部位：鴨</button>
+    <button id="bClear">清除紀錄</button>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const C = { amber: "#E39A4E", clay: "#B9825A", blue: "#6FA3D8", moss: "#8FB573", wis: "#A58BD0", rust: "#C9644A", txt: "#EDE6D6", sub: "#9C978B" };
+const app = $("app"), fig = $("fig"), nk = $("necker");
+
+// ---------- 原創線稿：鴨兔圖（左邊兩條突出＝鴨喙／兔耳；右邊凹口＝鴨後腦／兔嘴） ----------
+const DR = {
+  upper: "M142 70 C110 58 62 52 36 60 C20 65 23 83 40 85 C70 88 110 92 137 97",
+  lower: "M137 97 C110 100 70 100 39 103 C22 106 25 123 43 123 C76 123 110 125 134 129",
+  head:  "M134 129 C139 151 158 166 182 168 C204 169 220 160 226 149",
+  notch: "M226 149 C221 146 216 143 214 139 C222 137 229 133 232 125",
+  back:  "M232 125 C237 100 226 76 202 65 C182 57 160 61 142 70",
+  neck1: "M168 167 C165 185 165 198 170 214",
+  neck2: "M208 165 C212 182 216 197 224 214"
+};
+const EYE = { cx: 180, cy: 92 };
+const PARTS = {
+  duck:   { lobes: "喙", notch: "後腦勺", face: "鴨頭朝左" },
+  rabbit: { lobes: "耳朵", notch: "嘴巴", face: "兔頭朝右" }
+};
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+
+// 剪影：沒有歧義的鴨（朝左）與兔（朝右）
+function duckSil(g, x, y, s) {
+  const t = el("g", { transform: `translate(${x},${y}) scale(${s})`, fill: C.moss, opacity: .85 }, g);
+  el("ellipse", { cx: 34, cy: 27, rx: 20, ry: 11 }, t); el("circle", { cx: 16, cy: 12, r: 8 }, t);
+  el("path", { d: "M9 10 L-1 13.5 L9 16 Z" }, t); el("path", { d: "M51 21 L60 15 L56 28 Z" }, t);
+  el("circle", { cx: 14, cy: 10, r: 1.5, fill: "#0E0F12" }, t);
+}
+function rabbitSil(g, x, y, s) {
+  const t = el("g", { transform: `translate(${x},${y}) scale(${s})`, fill: C.clay, opacity: .9 }, g);
+  el("ellipse", { cx: 26, cy: 29, rx: 17, ry: 10 }, t); el("circle", { cx: 43, cy: 19, r: 7.5 }, t);
+  el("ellipse", { cx: 37, cy: 5, rx: 2.8, ry: 9, transform: "rotate(-18 37 5)" }, t);
+  el("ellipse", { cx: 43, cy: 4, rx: 2.8, ry: 9, transform: "rotate(8 43 4)" }, t);
+  el("circle", { cx: 9, cy: 27, r: 3.5 }, t); el("circle", { cx: 46, cy: 17, r: 1.4, fill: "#0E0F12" }, t);
+}
+
+let partsMode = null;          // null｜"duck"｜"rabbit"：標出部位
+function drawFig(ctxKind, showDR) {
+  fig.innerHTML = "";
+  const g = el("g", {}, fig);
+  if (ctxKind === "duckRow" || ctxKind === "rabbitRow") {
+    const f = ctxKind === "duckRow" ? duckSil : rabbitSil;
+    for (let i = 0; i < 5; i++) { f(g, 18 + i * 76, 8, 0.95); f(g, 18 + i * 76, 248, 0.95); }
+  } else if (ctxKind === "duckText" || ctxKind === "rabbitText") {
+    el("text", { x: 200, y: 34, "text-anchor": "middle", fill: C.amber, "font-size": 22, "font-family": "Noto Serif TC, serif" }, g).textContent = ctxKind === "duckText" ? "池塘裡游著……" : "中秋節，月亮上的……";
+  }
+  if (!showDR) return;
+  const d = el("g", { transform: "translate(58,30)", fill: "none", stroke: C.txt, "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }, g);
+  const lobeCol = partsMode === "duck" ? C.moss : partsMode === "rabbit" ? C.clay : C.txt;
+  el("path", { d: DR.upper, stroke: lobeCol }, d); el("path", { d: DR.lower, stroke: lobeCol }, d);
+  el("path", { d: DR.head }, d); el("path", { d: DR.notch, stroke: partsMode ? C.wis : C.txt }, d); el("path", { d: DR.back }, d);
+  el("path", { d: DR.neck1 }, d); el("path", { d: DR.neck2 }, d);
+  el("circle", { cx: EYE.cx, cy: EYE.cy, r: 7, "stroke-width": 2.5 }, d); el("circle", { cx: EYE.cx - 1, cy: EYE.cy, r: 3, fill: C.txt, stroke: "none" }, d);
+  if (partsMode) {
+    const P = PARTS[partsMode], lab = (x, y, s, c) => { const t = el("text", { x, y, fill: c, "font-size": 15, "font-family": "Noto Serif TC, serif", "text-anchor": "middle" }, g); t.textContent = s; };
+    lab(95, 170, `兩條突出＝${P.lobes}`, lobeCol);
+    lab(318, 205, `凹口＝${P.notch}`, C.wis);
+    lab(200, 292, `${partsMode === "duck" ? "看成鴨" : "看成兔"}：${P.face}（線條完全相同）`, C.sub);
+  }
+}
+
+// ---------- 紀錄與統計 ----------
+const CTX = { duckRow: "一排鴨子", duckText: "文字：池塘", rabbitRow: "一排兔子", rabbitText: "文字：中秋", none: "不給語境" };
+const DUCKISH = ["duckRow", "duckText"], RABBITISH = ["rabbitRow", "rabbitText"];
+let trials = [], simTrials = [], src = "me";
+try { const s = JSON.parse(localStorage.getItem("lg-u09-trials") || "[]"); if (Array.isArray(s)) trials = s.filter(t => t && CTX[t.c] && (t.r === "duck" || t.r === "rabbit")); } catch (e) {}
+const save = () => { try { localStorage.setItem("lg-u09-trials", JSON.stringify(trials)); } catch (e) {} };
+
+const lf = (() => { const a = [0]; for (let i = 1; i <= 2000; i++) a[i] = a[i - 1] + Math.log(i); return n => a[n]; })();
+// 費雪精確檢定（雙尾）：2×2 表 [[a,b],[c,d]]
+function fisher(a, b, c, d) {
+  const n = a + b + c + d, r1 = a + b, c1 = a + c, r2 = c + d;
+  if (!n || !r1 || !r2) return NaN;
+  const p = x => Math.exp(lf(r1) + lf(r2) + lf(c1) + lf(n - c1) - lf(n) - lf(x) - lf(r1 - x) - lf(c1 - x) - lf(r2 - c1 + x));
+  const lo = Math.max(0, c1 - r2), hi = Math.min(r1, c1), p0 = p(a);
+  let s = 0; for (let x = lo; x <= hi; x++) { const px = p(x); if (px <= p0 * (1 + 1e-9)) s += px; }
+  return Math.min(1, s);
+}
+function stats(T) {
+  const g = {}; Object.keys(CTX).forEach(k => g[k] = { d: 0, r: 0 });
+  T.forEach(t => g[t.c][t.r === "duck" ? "d" : "r"]++);
+  const sum = keys => keys.reduce((o, k) => ({ d: o.d + g[k].d, r: o.r + g[k].r }), { d: 0, r: 0 });
+  const D = sum(DUCKISH), R = sum(RABBITISH);
+  return { g, D, R, p: fisher(D.d, D.r, R.d, R.r) };
+}
+const pct = (d, r) => d + r ? Math.round(100 * d / (d + r)) + "%" : "—";
+function renderStats() {
+  const T = src === "me" ? trials : simTrials, S = stats(T);
+  $("statTitle").textContent = src === "me" ? "依語境分組（你的紀錄）" : "依語境分組（模擬受試者，不是真實資料）";
+  $("tb").innerHTML = Object.keys(CTX).map(k => {
+    const { d, r } = S.g[k], w = d + r ? Math.round(80 * d / (d + r)) : 0, col = DUCKISH.includes(k) ? C.moss : RABBITISH.includes(k) ? C.clay : C.sub;
+    return `<tr><td>${CTX[k]}</td><td class="num">${d}</td><td class="num">${r}</td><td><span class="bar" style="width:${w}px;background:${col}"></span> <span class="mono">${pct(d, r)}</span></td></tr>`;
+  }).join("");
+  $("rN").textContent = trials.length;
+  $("rD").textContent = pct(S.D.d, S.D.r); $("rR").textContent = pct(S.R.d, S.R.r);
+  $("rP").textContent = isNaN(S.p) ? "—" : S.p < 0.001 ? "<0.001" : S.p.toFixed(3);
+  $("test").innerHTML = isNaN(S.p)
+    ? "鴨類語境（一排鴨子＋池塘）和兔類語境（一排兔子＋中秋）都至少要有一筆紀錄，才能比較。"
+    : `鴨類語境 ${S.D.d}/${S.D.d + S.D.r} 看成鴨，兔類語境 ${S.R.d}/${S.R.d + S.R.r} 看成鴨。費雪精確檢定（雙尾）：如果語境完全沒作用，出現這麼大或更大差距的機率是 <b>${S.p < 0.001 ? "小於 0.001" : S.p.toFixed(3)}</b>${S.p < 0.05 ? "，<span class=\"ok\">語境看來有作用</span>。" : "，還不足以說語境有作用（紀錄可能太少）。"}`;
+  $("moral").innerHTML = `<b>心理學與概念。</b>語境怎麼影響判讀、原因是什麼，是心理學家感興趣的（PPF §114）。維根斯坦感興趣的是「看成」這個概念：同一張圖被鴨群和兔群圍著時，我們有理由說「看到的不一樣」（§125），可是精確的複製圖一模一樣（§131）。差別不在一張只有你看得到的內在圖像，而在你怎麼比較、怎麼指、怎麼反應：看成兔，你會指向別的兔子（§120）。<br><b>注意：</b>第一眼只有一次。做過幾輪之後你已經知道兩種看法，之後的判讀不再是單純的「第一眼」；這正是 §118「持續看見」與「閃現」的差別。`;
+}
+function simulate() {
+  const N = +$("sN").value, s = +$("sS").value; let seed = Math.floor(Math.random() * 1e9);
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  simTrials = [];
+  Object.keys(CTX).forEach(k => {
+    const per = Math.round(N / (k === "none" ? 1 : 2)), pDuck = 0.5 + (DUCKISH.includes(k) ? s : RABBITISH.includes(k) ? -s : 0);
+    for (let i = 0; i < per; i++) simTrials.push({ c: k, r: rnd() < pDuck ? "duck" : "rabbit" });
+  });
+}
+
+// ---------- 一輪實驗 ----------
+let phase = "idle", cur = null, t0 = 0, timer = null;
+function pickCtx() {
+  const v = $("ctxSel").value; if (v !== "rand") return v;
+  const keys = Object.keys(CTX), cnt = k => trials.filter(t => t.c === k).length, m = Math.min(...keys.map(cnt));
+  const pool = keys.filter(k => cnt(k) === m); return pool[Math.floor(Math.random() * pool.length)];   // 平衡各語境的筆數
+}
+function start() {
+  if (phase === "ctx") return;
+  clearTimeout(timer); partsMode = null; $("bParts").classList.remove("on"); $("bParts").textContent = "標出部位：鴨";
+  cur = pickCtx(); phase = "ctx";
+  drawFig(cur, false); $("msg").textContent = cur === "none" ? "準備……" : "先看一下語境……";
+  $("aDuck").disabled = $("aRabbit").disabled = true;
+  timer = setTimeout(() => { phase = "ask"; drawFig(cur, true); t0 = performance.now(); $("msg").textContent = "第一眼看到的是？立刻選！"; $("aDuck").disabled = $("aRabbit").disabled = false; }, cur === "none" ? 600 : 1300);
+}
+function answer(r) {
+  if (phase !== "ask") return;
+  const ms = Math.round(performance.now() - t0);
+  trials.push({ c: cur, r, ms }); save(); phase = "idle";
+  $("aDuck").disabled = $("aRabbit").disabled = true;
+  $("msg").textContent = `記下了：語境「${CTX[cur]}」，你第一眼看成${r === "duck" ? "鴨" : "兔"}（${ms} 毫秒）。再按「開始一輪」。`;
+  if (src !== "me") { src = "me"; $("src").value = "me"; $("simSec").style.display = "none"; }
+  renderStats();
+}
+
+// ---------- 內克方塊 ----------
+let nCubes = 2, cubeState = [0, 1, 0, 0];
+function drawNecker() {
+  nk.innerHTML = "";
+  const w = 400 / nCubes, s = Math.min(70, w * 0.52), o = s * 0.42;
+  for (let i = 0; i < nCubes; i++) {
+    const x0 = i * w + (w - s - o) / 2, y0 = 22 + o;
+    const A = [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s]];           // 左下的正方形
+    const B = A.map(([x, y]) => [x + o, y - o]);                                   // 右上的正方形
+    const front = cubeState[i] === 0 ? A : B, back = cubeState[i] === 0 ? B : A;
+    const g = el("g", { "data-i": i, style: "cursor:pointer" }, nk);
+    el("rect", { x: i * w + 2, y: 2, width: w - 4, height: 146, fill: "transparent" }, g);
+    const poly = P => P.map(p => p.join(",")).join(" ");
+    el("polygon", { points: poly(front), fill: "rgba(165,139,208,.28)", stroke: "none" }, g);
+    // 後面那個正方形的邊：與前面正方形不相交的部分用虛線（隱藏線）
+    el("polygon", { points: poly(back), fill: "none", stroke: C.sub, "stroke-width": 1.6, "stroke-dasharray": "4 4" }, g);
+    for (let k = 0; k < 4; k++) el("line", { x1: A[k][0], y1: A[k][1], x2: B[k][0], y2: B[k][1], stroke: C.txt, "stroke-width": 1.8 }, g);
+    el("polygon", { points: poly(front), fill: "none", stroke: C.wis, "stroke-width": 2.6 }, g);
+    el("text", { x: i * w + w / 2, y: 144, "text-anchor": "middle", fill: C.sub, "font-size": 12, "font-family": "Noto Serif TC, serif" }, g).textContent = cubeState[i] === 0 ? "左下面在前" : "右上面在前";
+  }
+  // 實際列舉全部讀法，找出目前是第幾種
+  const all = []; for (let m = 0; m < Math.pow(2, nCubes); m++) all.push(Array.from({ length: nCubes }, (_, i) => (m >> i) & 1));
+  const idx = all.findIndex(r => r.every((v, i) => v === cubeState[i]));
+  $("nkInfo").innerHTML = `${nCubes} 個方塊、每個 2 種讀法：整體共 <b>${all.length}</b> 種（2^${nCubes}，已逐一列舉），目前是第 <b>${idx + 1}</b> 種。紙上的線條只有一套。加上左邊的鴨兔圖，整體讀法是 <b>${all.length * 2}</b> 種。`;
+}
+nk.addEventListener("click", e => { const g = e.target.closest("g[data-i]"); if (!g) return; const i = +g.dataset.i; cubeState[i] ^= 1; drawNecker(); });
+
+// ---------- 互動 ----------
+$("bStart").onclick = start;
+$("aDuck").onclick = () => answer("duck");
+$("aRabbit").onclick = () => answer("rabbit");
+$("bParts").onclick = () => {
+  if (phase === "ctx" || phase === "ask") return;
+  partsMode = partsMode === null ? "duck" : partsMode === "duck" ? "rabbit" : null;
+  $("bParts").classList.toggle("on", !!partsMode);
+  $("bParts").textContent = partsMode === null ? "標出部位：鴨" : partsMode === "duck" ? "標出部位：兔" : "不標部位";
+  drawFig("none", true);
+};
+// 按住圖形：在兩種讀法的部位標示之間切換
+let holdT = null;
+fig.addEventListener("pointerdown", () => { if (phase === "idle") { holdT = setTimeout(() => { partsMode = partsMode === "rabbit" ? "duck" : "rabbit"; drawFig("none", true); }, 250); } });
+["pointerup", "pointerleave", "pointercancel"].forEach(ev => fig.addEventListener(ev, () => clearTimeout(holdT)));
+$("bClear").onclick = () => { trials = []; save(); renderStats(); $("msg").textContent = "紀錄已清除。"; };
+$("src").onchange = e => { src = e.target.value; $("simSec").style.display = src === "sim" ? "" : "none"; if (src === "sim" && !simTrials.length) simulate(); renderStats(); };
+$("sN").oninput = e => { $("oN").textContent = e.target.value; simulate(); renderStats(); };
+$("sS").oninput = e => { $("oS").textContent = (+e.target.value).toFixed(2); simulate(); renderStats(); };
+$("bSim").onclick = () => { simulate(); renderStats(); };
+$("nC").oninput = e => { nCubes = +e.target.value; $("oC").textContent = nCubes; drawNecker(); };
+document.addEventListener("keydown", e => { if (e.key === "d" || e.key === "D") answer("duck"); if (e.key === "r" || e.key === "R") answer("rabbit"); });
+
+function layout() { app.classList.toggle("portrait", innerHeight > innerWidth * 1.05); }
+new ResizeObserver(layout).observe(document.body);
+layout(); drawFig("none", true); drawNecker(); renderStats();
+})();
+</script>
+</body>
+</html>

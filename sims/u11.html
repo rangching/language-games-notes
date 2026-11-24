@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>迷你 GraphRAG：相似度 vs. 圖上多跳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--cyan:#56B6C2;--rust:#C9644A;--moss:#8FB573;--blue:#6FA3D8}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1.15fr) minmax(0,1fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:6px;display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+#qbox{font-size:15px;line-height:1.6}
+#qbox small{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:5px;padding:0 6px;margin-right:6px;color:var(--sub)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.cols>.sec:first-child{border-right:1px solid var(--line)}
+#app.portrait .cols,.narrow .cols{grid-template-columns:1fr}
+#app.portrait .cols>.sec:first-child,.narrow .cols>.sec:first-child{border-right:0}
+.para{font-size:12px;line-height:1.6;padding:4px 6px;border-radius:6px;margin-bottom:4px;border:1px solid transparent;background:rgba(255,255,255,.02)}
+.para .pid{font-family:"JetBrains Mono",monospace;color:var(--sub);font-size:11px;margin-right:4px}
+.para .sc{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--amber);float:right;margin-left:6px}
+.para.need{border-color:rgba(143,181,115,.7)}
+.para.miss{border-color:rgba(201,100,74,.7);border-style:dashed;opacity:.85}
+.verdict{font-size:13px;line-height:1.6;margin-top:6px;padding:6px 8px;border-radius:6px}
+.verdict.ok{background:rgba(143,181,115,.12);color:#CFE3BF}
+.verdict.bad{background:rgba(201,100,74,.14);color:#F0C6B8}
+.verdict.mid{background:rgba(227,154,78,.12);color:#F3D6B4}
+.step{font-size:12px;line-height:1.7;font-family:"JetBrains Mono","Noto Serif TC",monospace}
+.step b{color:var(--cyan);font-weight:600}
+.step .src{color:var(--sub);font-size:11px}
+.comm{font-size:12px;line-height:1.6;margin-bottom:6px;padding-left:8px;border-left:3px solid}
+.note{font-size:11px;color:var(--sub);line-height:1.6}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+label.grow{flex:1 1 150px;min-width:130px}
+input[type=range]{flex:1;accent-color:var(--amber);height:28px;min-width:60px}
+input[type=text]{flex:1;min-width:0;background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:inherit;font-size:13px;min-height:32px}
+output{font-family:"JetBrains Mono",monospace;color:var(--txt);min-width:14px}
+select,button{background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer;max-width:100%}
+button:active{background:#262A31}
+button.on{border-color:var(--cyan);color:var(--cyan)}
+#ask{display:flex;gap:6px;flex:2 1 240px;min-width:0}
+.legend{position:absolute;left:8px;top:6px;font-size:11px;color:var(--sub);pointer-events:none;line-height:1.7;display:flex;flex-wrap:wrap;gap:0 10px;max-width:calc(100% - 16px)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;vertical-align:-1px}
+.tag{position:absolute;right:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none;text-align:right}
+#app.portrait header span{display:none}
+#app.portrait .tag{display:none}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 8px;font-size:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>迷你 GraphRAG：相似度 vs. 圖上多跳</h1><span>只比「像不像」會留下語義孤島；把關聯畫出來才看得見連結（§122）</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="由虛構語料整理出的知識圖譜：青色粗線是圖上找到的路徑，琥珀虛線是相似度取回的段落所記載的關聯"></canvas>
+    <div class="legend" id="legend"></div>
+    <span class="tag">青色粗線＝圖上找到的路徑　琥珀虛線＝相似度取回的段落裡的關聯<br>點節點：看它的一跳鄰居</span></div>
+  <div id="side" class="box">
+    <div class="sec"><div id="qbox"></div></div>
+    <div class="cols">
+      <div class="sec"><h3><span>(a) 相似度：取前 <b id="kLab" class="mono">3</b> 段</span></h3><div id="simOut"></div></div>
+      <div class="sec"><h3><span>(b) 圖上多跳</span></h3><div id="graphOut"></div></div>
+    </div>
+    <div class="sec" id="commSec"><h3><span>社群摘要（GraphRAG 的全域直覺）</span></h3><div id="commOut"></div></div>
+    <div class="sec"><h3><span>全部 <span id="nPara"></span> 段語料（虛構公司「霧港電器」的紀錄）</span></h3><div id="allOut"></div>
+      <p class="note">公司、人名、合約全部虛構。相似度＝字元二元組詞袋的餘弦相似度（相鄰兩字算一個單位，只比字面重疊，真實系統多用神經網路向量）。圖譜的三元組由人依「採購查核」這個用途從語料整理出來；「霧港電器」每段都會提到，所以刻意不當成節點，否則所有路徑都會從它抄捷徑：這正是本體由用途決定的一個小例子。</p></div>
+  </div>
+  <div id="ctrl" class="box">
+    <label>問題 <select id="qsel"></select></label>
+    <label class="grow">k <input id="k" type="range" min="1" max="6" step="1" value="3"><output id="kOut">3</output></label>
+    <button id="bColor">節點顏色：類型</button>
+    <span id="ask"><input id="qtext" type="text" placeholder="自己問：例如「許若嵐和新竹有什麼關係？」" aria-label="自訂問題"><button id="bAsk">問</button></span>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const DATA = {"note": "EP11 迷你 GraphRAG 示範資料。公司、供應商、人名、合約全部虛構，與任何真實公司或個人無關。sims/u11.html 內嵌同一份內容；_units/calc_u11.py 讀這個檔。改這裡時兩邊要一起改。", "company": "霧港電器（虛構）", "paragraphs": [{"id": "p1", "text": "霧港電器是一家小型家電公司，主力產品有三項：晨光電鍋 C5、微風除濕機 W2、靜川清淨機 A3。"}, {"id": "p2", "text": "晨光電鍋 C5 在春季上市，主打一鍵煮飯與長時間保溫，第一個月的銷量就超出預期。"}, {"id": "p3", "text": "晨光電鍋 C5 的外殼與內鍋零件，由雲杉塑膠負責供應。"}, {"id": "p4", "text": "雲杉塑膠的工廠與倉庫都設在台中，離高速公路交流道不遠，出貨很快。"}, {"id": "p5", "text": "產品經理許若嵐管理晨光電鍋 C5，她每週整理客訴與退貨原因。"}, {"id": "p6", "text": "合約 C-104 的供應商是雲杉塑膠，內容是晨光電鍋 C5 外殼的年度採購。"}, {"id": "p7", "text": "合約 C-101：霧港電器向石楠精工採購微風除濕機 W2 的壓縮機，為期兩年。"}, {"id": "p8", "text": "石楠精工同意以合約 C-103 供應靜川清淨機 A3 的風扇馬達。"}, {"id": "p9", "text": "C-105 是一份維修零件合約，簽約對象為石楠精工，適用於微風除濕機 W2 的售後服務。"}, {"id": "p10", "text": "合約 C-102 的乙方是澄水電子，標的為靜川清淨機 A3 使用的空氣品質感測器。"}, {"id": "p11", "text": "包裝紙箱另外與白榕包材簽約，編號 C-106，先用在微風除濕機 W2。"}, {"id": "p12", "text": "微風除濕機 W2 的壓縮機來自石楠精工，是除濕效率的關鍵零件。"}, {"id": "p13", "text": "石楠精工位於新竹，澄水電子位於桃園，白榕包材則在高雄。"}, {"id": "p14", "text": "採購經理周以恆經手合約 C-101 與 C-103，每一季都到供應商現場查核。"}, {"id": "p15", "text": "法務葉知秋審閱了合約 C-102、C-104、C-105 與 C-106 的條款。"}, {"id": "p16", "text": "品管工程師陳柏衡每個月稽核石楠精工的出貨品質。"}, {"id": "p17", "text": "靜川清淨機 A3 在秋季改版，新增夜間靜音模式與更換濾網提醒。"}, {"id": "p18", "text": "晨光電鍋 C5 的保固期為兩年，客服專線週一到週六都有人接聽。"}], "nodes": [{"id": "石楠精工", "type": "供應商", "alias": []}, {"id": "澄水電子", "type": "供應商", "alias": []}, {"id": "雲杉塑膠", "type": "供應商", "alias": []}, {"id": "白榕包材", "type": "供應商", "alias": []}, {"id": "晨光電鍋 C5", "type": "產品", "alias": ["晨光電鍋", "C5"]}, {"id": "微風除濕機 W2", "type": "產品", "alias": ["微風除濕機", "W2"]}, {"id": "靜川清淨機 A3", "type": "產品", "alias": ["靜川清淨機", "A3"]}, {"id": "C-101", "type": "合約", "alias": []}, {"id": "C-102", "type": "合約", "alias": []}, {"id": "C-103", "type": "合約", "alias": []}, {"id": "C-104", "type": "合約", "alias": []}, {"id": "C-105", "type": "合約", "alias": []}, {"id": "C-106", "type": "合約", "alias": []}, {"id": "許若嵐", "type": "人員", "alias": []}, {"id": "周以恆", "type": "人員", "alias": []}, {"id": "葉知秋", "type": "人員", "alias": []}, {"id": "陳柏衡", "type": "人員", "alias": []}, {"id": "台中", "type": "城市", "alias": []}, {"id": "新竹", "type": "城市", "alias": []}, {"id": "桃園", "type": "城市", "alias": []}, {"id": "高雄", "type": "城市", "alias": []}], "triples": [{"s": "雲杉塑膠", "p": "供應", "o": "晨光電鍋 C5", "src": "p3"}, {"s": "雲杉塑膠", "p": "位於", "o": "台中", "src": "p4"}, {"s": "許若嵐", "p": "管理", "o": "晨光電鍋 C5", "src": "p5"}, {"s": "C-104", "p": "簽約方", "o": "雲杉塑膠", "src": "p6"}, {"s": "C-104", "p": "涵蓋", "o": "晨光電鍋 C5", "src": "p6"}, {"s": "C-101", "p": "簽約方", "o": "石楠精工", "src": "p7"}, {"s": "C-101", "p": "涵蓋", "o": "微風除濕機 W2", "src": "p7"}, {"s": "C-103", "p": "簽約方", "o": "石楠精工", "src": "p8"}, {"s": "C-103", "p": "涵蓋", "o": "靜川清淨機 A3", "src": "p8"}, {"s": "石楠精工", "p": "供應", "o": "靜川清淨機 A3", "src": "p8"}, {"s": "C-105", "p": "簽約方", "o": "石楠精工", "src": "p9"}, {"s": "C-105", "p": "涵蓋", "o": "微風除濕機 W2", "src": "p9"}, {"s": "C-102", "p": "簽約方", "o": "澄水電子", "src": "p10"}, {"s": "C-102", "p": "涵蓋", "o": "靜川清淨機 A3", "src": "p10"}, {"s": "澄水電子", "p": "供應", "o": "靜川清淨機 A3", "src": "p10"}, {"s": "C-106", "p": "簽約方", "o": "白榕包材", "src": "p11"}, {"s": "C-106", "p": "涵蓋", "o": "微風除濕機 W2", "src": "p11"}, {"s": "白榕包材", "p": "供應", "o": "微風除濕機 W2", "src": "p11"}, {"s": "石楠精工", "p": "供應", "o": "微風除濕機 W2", "src": "p12"}, {"s": "石楠精工", "p": "位於", "o": "新竹", "src": "p13"}, {"s": "澄水電子", "p": "位於", "o": "桃園", "src": "p13"}, {"s": "白榕包材", "p": "位於", "o": "高雄", "src": "p13"}, {"s": "周以恆", "p": "經手", "o": "C-101", "src": "p14"}, {"s": "周以恆", "p": "經手", "o": "C-103", "src": "p14"}, {"s": "葉知秋", "p": "審閱", "o": "C-102", "src": "p15"}, {"s": "葉知秋", "p": "審閱", "o": "C-104", "src": "p15"}, {"s": "葉知秋", "p": "審閱", "o": "C-105", "src": "p15"}, {"s": "葉知秋", "p": "審閱", "o": "C-106", "src": "p15"}, {"s": "陳柏衡", "p": "稽核", "o": "石楠精工", "src": "p16"}], "questions": [{"id": "q1", "kind": "單跳", "text": "合約 C-104 的供應商是哪一家？", "start": "C-104", "steps": [{"p": "簽約方", "dir": "out"}], "answer": "雲杉塑膠"}, {"id": "q2", "kind": "兩跳", "text": "晨光電鍋 C5 的零件供應商在哪個城市？", "start": "晨光電鍋 C5", "steps": [{"p": "供應", "dir": "in"}, {"p": "位於", "dir": "out"}], "answer": "台中"}, {"id": "q3", "kind": "全域", "text": "哪一家供應商出現在最多份合約裡？", "aggregate": {"p": "簽約方", "count": "o"}, "answer": "石楠精工"}], "similarity": "字元二元組（相鄰兩字）詞袋的餘弦相似度：只保留中英文字與數字（去掉空白與標點、英文轉小寫），每段與問題各自數出所有相鄰兩字的出現次數，再算 cos。"};
+const $ = id => document.getElementById(id);
+const C = { amber: "#E39A4E", cyan: "#56B6C2", rust: "#C9644A", moss: "#8FB573", blue: "#6FA3D8", wis: "#A58BD0", clay: "#B9825A", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D" };
+const TYPE_COL = { "供應商": C.moss, "產品": C.amber, "合約": C.blue, "人員": C.wis, "城市": C.clay };
+const COMM_COL = ["#6FA3D8", "#8FB573", "#E39A4E", "#A58BD0", "#B9825A", "#D98BA6"];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---------- 資料 ----------
+const P = DATA.paragraphs, T = DATA.triples, NODES = DATA.nodes.map(n => n.id), TYPE = Object.fromEntries(DATA.nodes.map(n => [n.id, n.type]));
+const PTEXT = Object.fromEntries(P.map(p => [p.id, p.text]));
+const ADJ = Object.fromEntries(NODES.map(n => [n, []]));
+T.forEach((t, i) => { ADJ[t.s].push({ to: t.o, i }); ADJ[t.o].push({ to: t.s, i }); });
+const cmpStr = (a, b) => a < b ? -1 : a > b ? 1 : 0;      // 依字碼排序，與 calc_u11.py 的 sorted() 一致
+const NEI = Object.fromEntries(NODES.map(n => [n, [...new Set(ADJ[n].map(e => e.to))].sort(cmpStr)]));
+
+// ---------- (a) 相似度：字元二元組詞袋＋餘弦 ----------
+function bigrams(s) {
+  const t = (s.match(/[0-9A-Za-z一-鿿]/g) || []).join("").toLowerCase(), m = new Map();
+  for (let i = 0; i < t.length - 1; i++) { const g = t.slice(i, i + 2); m.set(g, (m.get(g) || 0) + 1); }
+  return m;
+}
+function cosine(a, b) {
+  let d = 0, na = 0, nb = 0;
+  a.forEach((v, k) => { d += v * (b.get(k) || 0); na += v * v; });
+  b.forEach(v => { nb += v * v; });
+  return na && nb ? d / Math.sqrt(na * nb) : 0;
+}
+const PVEC = P.map(p => bigrams(p.text));
+function rank(q) {
+  const qv = bigrams(q);
+  return P.map((p, i) => ({ id: p.id, i, s: cosine(qv, PVEC[i]) })).sort((x, y) => y.s - x.s || x.i - y.i);
+}
+
+// ---------- (b) 圖：BFS、樣式走訪、彙整 ----------
+function shortestPath(a, b) {
+  const prev = new Map([[a, null]]), q = [a];
+  while (q.length) { const u = q.shift(); if (u === b) break; for (const v of NEI[u]) if (!prev.has(v)) { prev.set(v, u); q.push(v); } }
+  if (!prev.has(b)) return null;
+  const path = []; for (let u = b; u != null; u = prev.get(u)) path.push(u); return path.reverse();
+}
+const edgeBetween = (u, v) => T.findIndex(t => (t.s === u && t.o === v) || (t.s === v && t.o === u));
+function walk(start, steps) {          // 依關係樣式一步步走：回傳所有完整路徑（三元組索引）
+  let paths = [{ at: start, edges: [] }];
+  for (const st of steps) {
+    const nx = [];
+    paths.forEach(p => T.forEach((t, i) => {
+      if (t.p !== st.p) return;
+      if (st.dir === "out" && t.s === p.at) nx.push({ at: t.o, edges: [...p.edges, i] });
+      if (st.dir === "in" && t.o === p.at) nx.push({ at: t.s, edges: [...p.edges, i] });
+    }));
+    paths = nx;
+  }
+  return paths;
+}
+function bfsDist(src) {
+  const d = new Map([[src, 0]]), q = [src];
+  while (q.length) { const u = q.shift(); for (const v of NEI[u]) if (!d.has(v)) { d.set(v, d.get(u) + 1); q.push(v); } }
+  return d;
+}
+// 社群：貪婪合併使模組度上升最多（與 calc_u11.py 相同的確定性做法；GraphRAG 原論文用 Leiden 演算法）
+function communities() {
+  const m = T.length, deg = Object.fromEntries(NODES.map(n => [n, ADJ[n].length]));
+  const Qof = parts => parts.reduce((q, Pt) => {
+    const lc = T.filter(t => Pt.has(t.s) && Pt.has(t.o)).length, dc = [...Pt].reduce((s, n) => s + deg[n], 0);
+    return q + lc / m - (dc / (2 * m)) ** 2;
+  }, 0);
+  let parts = NODES.map(n => new Set([n]));
+  for (;;) {
+    let best = null, bq = Qof(parts);
+    for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+      if (![...parts[i]].some(n => NEI[n].some(o => parts[j].has(o)))) continue;
+      const np = parts.filter((_, k) => k !== i && k !== j).concat([new Set([...parts[i], ...parts[j]])]);
+      const q = Qof(np); if (q > bq + 1e-12) { bq = q; best = [i, j]; }
+    }
+    if (!best) return { parts, Q: bq };
+    const [i, j] = best; parts = parts.filter((_, k) => k !== i && k !== j).concat([new Set([...parts[i], ...parts[j]])]);
+  }
+}
+const COMM = communities();
+COMM.parts.sort((a, b) => NODES.indexOf([...a].sort((x, y) => NODES.indexOf(x) - NODES.indexOf(y))[0]) - NODES.indexOf([...b].sort((x, y) => NODES.indexOf(x) - NODES.indexOf(y))[0]));
+const COMM_OF = {}; COMM.parts.forEach((p, c) => p.forEach(n => COMM_OF[n] = c));
+
+// 實體連結：問題裡出現哪些節點名稱或別名（依出現位置排序）
+function linkEntities(q) {
+  const hits = [];
+  DATA.nodes.forEach(n => [n.id, ...n.alias].forEach(a => { const i = q.indexOf(a); if (i >= 0) hits.push({ n: n.id, i, len: a.length }); }));
+  hits.sort((a, b) => a.i - b.i || b.len - a.len);
+  const seen = new Set(), out = [];
+  hits.forEach(h => { if (!seen.has(h.n)) { seen.add(h.n); out.push(h.n); } });
+  return out;
+}
+
+// ---------- 版面：力導向配置（固定初值、固定迭代次數 → 每次都一樣） ----------
+const POS = (() => {
+  const n = NODES.length, pos = NODES.map((_, i) => { const a = i * 2.399963; const r = Math.sqrt(i + .5) / Math.sqrt(n); return [r * Math.cos(a), r * Math.sin(a)]; });
+  const E = T.map(t => [NODES.indexOf(t.s), NODES.indexOf(t.o)]), k = 0.4;
+  for (let it = 0; it < 1000; it++) {
+    const disp = pos.map(() => [0, 0]), temp = 0.08 * (1 - it / 1000) + 0.002;
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      const dx = pos[i][0] - pos[j][0], dy = pos[i][1] - pos[j][1], d = Math.max(0.01, Math.hypot(dx, dy)), f = k * k / d;
+      disp[i][0] += dx / d * f; disp[i][1] += dy / d * f; disp[j][0] -= dx / d * f; disp[j][1] -= dy / d * f;
+    }
+    E.forEach(([a, b]) => {
+      const dx = pos[a][0] - pos[b][0], dy = pos[a][1] - pos[b][1], d = Math.max(0.01, Math.hypot(dx, dy)), f = d * d / k;
+      disp[a][0] -= dx / d * f; disp[a][1] -= dy / d * f; disp[b][0] += dx / d * f; disp[b][1] += dy / d * f;
+    });
+    pos.forEach((p, i) => { const L = Math.max(1e-9, Math.hypot(...disp[i])), s = Math.min(L, temp); p[0] += disp[i][0] / L * s; p[1] += disp[i][1] / L * s; p[0] -= p[0] * 0.01; p[1] -= p[1] * 0.01; });
+  }
+  const norm = ps => { const xs = ps.map(p => p[0]), ys = ps.map(p => p[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys); return ps.map(p => [(p[0] - x0) / (x1 - x0 || 1), (p[1] - y0) / (y1 - y0 || 1)]); };
+  let q = norm(pos);
+  for (let it = 0; it < 300; it++) {                 // 最後再把太靠近的節點推開，避免標籤疊在一起
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      const dx = q[i][0] - q[j][0], dy = q[i][1] - q[j][1], d = Math.hypot(dx, dy) || 1e-6, need = 0.13;
+      if (d < need) { const s = (need - d) / 2 / d; q[i][0] += dx * s; q[i][1] += dy * s; q[j][0] -= dx * s; q[j][1] -= dy * s; }
+    }
+    q = norm(q);
+  }
+  return q;
+})();
+
+// ---------- 狀態 ----------
+let qi = 1, k = 3, colorBy = "type", custom = "", focus = null, cur = null;
+const app = $("app"), cv = $("cv"), ctx = cv.getContext("2d");
+let SW = 0, SH = 0, screenPos = [];
+function fit(c) { const r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2); c.width = Math.max(1, r.width * dpr | 0); c.height = Math.max(1, r.height * dpr | 0); c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0); return { w: r.width, h: r.height }; }
+function layout() { app.classList.toggle("portrait", innerHeight > innerWidth * 1.05); app.classList.toggle("narrow", $("side").clientWidth < 520); ({ w: SW, h: SH } = fit(cv)); drawGraph(); }
+
+// ---------- 回答 ----------
+function solve() {
+  const q = qi >= 0 ? DATA.questions[qi] : null, text = q ? q.text : custom;
+  const ranked = rank(text), top = ranked.slice(0, k), topIds = new Set(top.map(r => r.id));
+  const out = { text, q, ranked, top, topIds, pathEdges: new Set(), pathNodes: new Set(), need: new Set(), graphHTML: "", simVerdict: "", answer: null };
+  if (q && q.steps) {
+    const paths = walk(q.start, q.steps);
+    paths.forEach(p => p.edges.forEach(i => { out.pathEdges.add(i); out.need.add(T[i].src); out.pathNodes.add(T[i].s); out.pathNodes.add(T[i].o); }));
+    out.answer = [...new Set(paths.map(p => p.at))].join("、") || "（找不到）";
+    out.graphHTML = `<div class="step">起點：<b>${esc(q.start)}</b><br>樣式：${q.steps.map(s => s.dir === "out" ? `—${s.p}→ ？` : `←${s.p}— ？`).join(" ")}</div>` +
+      paths.map(p => `<div class="step" style="margin-top:4px">${p.edges.map((i, n) => `${n ? "" : esc(q.start)} ${q.steps[n].dir === "out" ? "—" + T[i].p + "→" : "←" + T[i].p + "—"} <b>${esc(q.steps[n].dir === "out" ? T[i].o : T[i].s)}</b> <span class="src">[${T[i].src}]</span>`).join("<br>")}</div>`).join("") +
+      `<div class="verdict ok">答案：<b>${esc(out.answer)}</b>（走了 ${q.steps.length} 跳，每一跳都有出處）</div>`;
+  } else if (q && q.aggregate) {
+    const cnt = new Map(); T.forEach((t, i) => { if (t.p === q.aggregate.p) { cnt.set(t.o, (cnt.get(t.o) || 0) + 1); out.pathEdges.add(i); out.need.add(t.src); } });
+    const rows = [...cnt].sort((a, b) => b[1] - a[1]);
+    out.answer = rows[0][0];
+    out.graphHTML = `<div class="step">把圖上每一條「${q.aggregate.p}」關聯數一遍（共 ${[...cnt.values()].reduce((a, b) => a + b, 0)} 條）：</div>` +
+      rows.map(([s, c]) => `<div class="step">${esc(s)}　<b>${c}</b> 份</div>`).join("") +
+      `<div class="verdict ok">答案：<b>${esc(out.answer)}</b>（${rows[0][1]} 份合約）。這種題目要「看完全部」，不是找最像的幾段。</div>`;
+    rows.forEach(([s]) => out.pathNodes.add(s));
+  } else {
+    const ents = linkEntities(text);
+    if (ents.length >= 2) {
+      const path = shortestPath(ents[0], ents[1]);
+      if (path) {
+        path.forEach(n => out.pathNodes.add(n));
+        const steps = path.slice(1).map((v, n) => { const i = edgeBetween(path[n], v); out.pathEdges.add(i); out.need.add(T[i].src); const t = T[i]; return `${t.s === path[n] ? "—" + t.p + "→" : "←" + t.p + "—"} <b>${esc(v)}</b> <span class="src">[${t.src}]</span>`; });
+        out.graphHTML = `<div class="step">圖中找到的實體：${ents.map(esc).join("、")}<br>最短路徑（BFS，${path.length - 1} 跳）：</div><div class="step">${esc(path[0])}<br>${steps.join("<br>")}</div>` +
+          `<div class="verdict mid">圖給的是「它們怎麼連在一起」的證據鏈；要回答什麼，還要看你問的是哪一種關係。</div>`;
+      } else out.graphHTML = `<div class="verdict bad">兩個實體之間沒有路徑。</div>`;
+    } else if (ents.length === 1) {
+      const d = bfsDist(ents[0]); out.pathNodes.add(ents[0]);
+      const one = ADJ[ents[0]].map(e => { out.pathEdges.add(e.i); out.need.add(T[e.i].src); const t = T[e.i]; return `${t.s === ents[0] ? "—" + t.p + "→" : "←" + t.p + "—"} <b>${esc(e.to)}</b> <span class="src">[${t.src}]</span>`; });
+      out.graphHTML = `<div class="step">圖中找到的實體：<b>${esc(ents[0])}</b><br>一跳鄰居（${one.length} 條關聯）：<br>${one.join("<br>")}</div><div class="note" style="margin-top:4px">兩跳以內可到達 ${[...d.values()].filter(x => x >= 1 && x <= 2).length} 個節點。問句裡再提一個實體，就能找兩者之間的路徑。</div>`;
+    } else out.graphHTML = `<div class="verdict bad">問句裡找不到圖中的節點名稱（例如：石楠精工、C-103、晨光電鍋、許若嵐、新竹）。圖只認得被整理成節點的東西。</div>`;
+  }
+  // (a) 的判定：取回的段落是否涵蓋圖上證據鏈需要的每一段
+  if (q) {
+    const need = [...out.need], miss = need.filter(p => !out.topIds.has(p));
+    if (q.aggregate) {
+      const names = NODES.filter(n => TYPE[n] === "供應商"), seen = names.map(n => [n, top.filter(r => PTEXT[r.id].includes(n)).length]).filter(x => x[1]).sort((a, b) => b[1] - a[1]);
+      out.simVerdict = `<div class="verdict ${miss.length ? "bad" : "mid"}">需要看完 ${need.length} 份合約的段落，只取回其中 ${need.length - miss.length} 段。只看取回的段落數供應商：${seen.length ? seen.map(([n, c]) => `${esc(n)} ${c}`).join("、") : "一家也沒有"}${seen.length > 1 && seen[0][1] === seen[1][1] ? "，平手，答不出來" : seen.length ? `，會答成「${esc(seen[0][0])}」${seen[0][0] === out.answer ? "（碰巧對，但證據不足以確定）" : "（錯）"}` : ""}。</div>`;
+    } else if (!miss.length) out.simVerdict = `<div class="verdict ok">需要的證據 ${need.join("、")} 都在前 ${k} 段裡：讀這幾段就答得出來。</div>`;
+    else out.simVerdict = `<div class="verdict bad">證據鏈缺了 ${miss.map(p => `<b>${p}</b>（排第 ${ranked.findIndex(r => r.id === p) + 1} 名）`).join("、")}。取回的每一段都「很像問題」，卻接不到答案所在的那一段：那段文字和問題幾乎沒有共同的字。這就是語義孤島。</div>`;
+  } else out.simVerdict = `<div class="note" style="margin-top:4px">自訂問題沒有標準答案；看看取回的段落是否真的接得起來。</div>`;
+  return out;
+}
+
+// ---------- 畫面 ----------
+function render() {
+  cur = solve();
+  const q = cur.q;
+  $("qbox").innerHTML = q ? `<small>${q.kind}問題</small>${esc(q.text)}` : `<small>自訂</small>${esc(custom || "（請在下方輸入問題）")}`;
+  $("kLab").textContent = k;
+  $("simOut").innerHTML = cur.top.map(r => `<div class="para ${cur.need.has(r.id) ? "need" : ""}"><span class="sc">${r.s.toFixed(3)}</span><span class="pid">${r.id}</span>${esc(PTEXT[r.id])}</div>`).join("") +
+    (q ? [...cur.need].filter(p => !cur.topIds.has(p)).slice(0, 3).map(p => `<div class="para miss"><span class="sc">${cur.ranked.find(r => r.id === p).s.toFixed(3)}</span><span class="pid">${p}・沒取到</span>${esc(PTEXT[p])}</div>`).join("") : "") + cur.simVerdict;
+  $("graphOut").innerHTML = cur.graphHTML;
+  // 社群摘要：每個社群各自「報告」，全域問題再彙整
+  const isGlobal = q && q.aggregate;
+  $("commOut").innerHTML = `<p class="note" style="margin-bottom:6px">用模組度貪婪合併把 ${NODES.length} 個節點分成 ${COMM.parts.length} 個社群（Q＝${COMM.Q.toFixed(3)}）。真正的 GraphRAG 會請語言模型替每個社群寫一份摘要；這裡用程式彙整數字代替。${isGlobal ? "全域問題：先讓每個社群各自回報（map），再加總（reduce）。" : "切換到「全域問題」可以看 map → reduce。"}</p>` +
+    COMM.parts.map((p, c) => {
+      const inner = T.filter(t => p.has(t.s) && p.has(t.o)).length;
+      const own = T.filter(t => t.p === "簽約方" && p.has(t.s)), cnt = new Map(); own.forEach(t => cnt.set(t.o, (cnt.get(t.o) || 0) + 1));
+      return `<div class="comm" style="border-color:${COMM_COL[c]}"><b style="color:${COMM_COL[c]}">社群 ${c + 1}</b>（${p.size} 個節點、內部 ${inner} 條關聯）：${[...p].map(esc).join("、")}` +
+        (isGlobal ? `<br><span class="mono" style="color:var(--cyan)">map →</span> 本社群的合約：${own.length ? [...cnt].map(([s, n]) => `${esc(s)} ${n}`).join("、") : "無"}` : "") + `</div>`;
+    }).join("") +
+    (isGlobal ? (() => { const tot = new Map(); T.filter(t => t.p === "簽約方").forEach(t => tot.set(t.o, (tot.get(t.o) || 0) + 1)); return `<div class="step"><span style="color:var(--cyan)">reduce →</span> ${[...tot].sort((a, b) => b[1] - a[1]).map(([s, n]) => `${esc(s)} <b>${n}</b>`).join("、")}　注意：石楠精工的 3 份合約分散在兩個社群，沒有任何一個社群單獨知道答案。</div>`; })() : "");
+  drawGraph();
+}
+function drawGraph() {
+  if (!SW || !cur) return;
+  ctx.clearRect(0, 0, SW, SH);
+  const por = app.classList.contains("portrait"), padT = por ? 44 : 52, padB = por ? 22 : 58, padX = Math.max(por ? 34 : 46, SW * 0.09);
+  screenPos = POS.map(p => [padX + p[0] * (SW - 2 * padX), padT + 10 + p[1] * (SH - padT - padB - 10)]);
+  const at = n => screenPos[NODES.indexOf(n)];
+  const focusEdges = focus ? new Set(ADJ[focus].map(e => e.i)) : null;
+  // 邊
+  T.forEach((t, i) => {
+    const a = at(t.s), b = at(t.o), onPath = cur.pathEdges.has(i), retrieved = cur.topIds.has(t.src), foc = focusEdges && focusEdges.has(i);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "rgba(237,230,214,.16)"; ctx.lineWidth = 1;
+    if (retrieved) { ctx.strokeStyle = C.amber; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); }
+    if (onPath) { ctx.strokeStyle = C.cyan; ctx.lineWidth = 4; ctx.setLineDash([]); }
+    if (foc) { ctx.strokeStyle = C.txt; ctx.lineWidth = 2.5; ctx.setLineDash([]); }
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    // 箭頭
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ex = b[0] - dx / L * 11, ey = b[1] - dy / L * 11, ang = Math.atan2(dy, dx);
+    ctx.setLineDash([]); ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - 7 * Math.cos(ang - .4), ey - 7 * Math.sin(ang - .4)); ctx.lineTo(ex - 7 * Math.cos(ang + .4), ey - 7 * Math.sin(ang + .4)); ctx.fill();
+    if ((onPath && cur.pathEdges.size <= 8) || foc) {
+      ctx.font = "11px 'Noto Serif TC',serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, w = ctx.measureText(t.p).width + 6;
+      ctx.fillStyle = "rgba(14,15,18,.85)"; ctx.fillRect(mx - w / 2, my - 8, w, 16); ctx.fillStyle = foc ? C.txt : C.cyan; ctx.fillText(t.p, mx, my);
+    }
+  });
+  // 節點
+  const fs = SW < 420 ? 10 : 12;
+  NODES.forEach((n, i) => {
+    const [x, y] = screenPos[i], col = colorBy === "type" ? TYPE_COL[TYPE[n]] : COMM_COL[COMM_OF[n]], hot = cur.pathNodes.has(n) || n === focus;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, hot ? 8 : 6, 0, 7); ctx.fill();
+    if (hot) { ctx.strokeStyle = C.txt; ctx.lineWidth = 2; ctx.stroke(); }
+    ctx.font = `${hot ? 600 : 400} ${fs}px 'Noto Serif TC',serif`; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    const w = ctx.measureText(n).width; ctx.fillStyle = "rgba(14,15,18,.7)"; ctx.fillRect(x - w / 2 - 2, y + 9, w + 4, fs + 3);
+    ctx.fillStyle = hot ? C.txt : "rgba(237,230,214,.75)"; ctx.fillText(n, x, y + 10);
+  });
+  $("legend").innerHTML = colorBy === "type" ? Object.entries(TYPE_COL).map(([t, c]) => `<span><i style="background:${c}"></i>${t}</span>`).join("") :
+    COMM.parts.map((_, c) => `<span><i style="background:${COMM_COL[c]}"></i>社群 ${c + 1}</span>`).join("");
+}
+
+// ---------- 控制 ----------
+$("nPara").textContent = P.length;
+$("allOut").innerHTML = P.map(p => `<div class="para"><span class="pid">${p.id}</span>${esc(p.text)}</div>`).join("");
+$("qsel").innerHTML = DATA.questions.map((q, i) => `<option value="${i}">${q.kind}：${esc(q.text)}</option>`).join("") + `<option value="-1">自訂問題</option>`;
+$("qsel").value = String(qi);
+$("qsel").onchange = e => { qi = +e.target.value; focus = null; if (qi < 0 && !custom) custom = $("qtext").value || "許若嵐和新竹有什麼關係？"; render(); };
+$("k").oninput = e => { k = +e.target.value; $("kOut").textContent = k; render(); };
+$("bColor").onclick = e => { colorBy = colorBy === "type" ? "comm" : "type"; e.target.textContent = "節點顏色：" + (colorBy === "type" ? "類型" : "社群"); drawGraph(); };
+const ask = () => { const v = $("qtext").value.trim(); if (!v) return; custom = v; qi = -1; $("qsel").value = "-1"; focus = null; render(); };
+$("bAsk").onclick = ask; $("qtext").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+cv.addEventListener("click", e => {
+  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  let best = -1, bd = 22; screenPos.forEach((p, i) => { const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = i; } });
+  focus = best >= 0 && NODES[best] !== focus ? NODES[best] : null; drawGraph();
+});
+
+render();
+new ResizeObserver(layout).observe(document.body);
+})();
+</script>
+</body>
+</html>

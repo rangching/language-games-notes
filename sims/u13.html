@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>角色與劇本</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--blue:#6FA3D8;--moss:#8FB573;--cyan:#56B6C2;--rust:#C9644A}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1.15fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+#read{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono","Noto Serif TC",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line);font-size:12.5px;line-height:1.6}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:5px;display:flex;justify-content:space-between;gap:6px}
+#queue{display:flex;flex-wrap:wrap;gap:4px;min-height:28px}
+.chip{font-size:12px;border-radius:6px;padding:2px 7px;border:1px solid var(--line);white-space:nowrap}
+.chip.head{border-color:var(--amber);color:var(--amber)}
+.chip.stuck{border-color:var(--rust);color:var(--rust);background:rgba(201,100,74,.12)}
+.empty{color:var(--sub);font-size:12px}
+#scripts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.role{border:1px solid var(--line);border-radius:8px;padding:5px 7px;min-width:0}
+.role h4{font-size:12.5px;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.role label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt);min-height:24px;cursor:pointer}
+.role input{width:16px;height:16px;accent-color:var(--cyan);flex:none}
+.role small{display:block;color:var(--sub);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#log{font-size:12px;line-height:1.55;max-height:260px;overflow-y:auto}
+#log div{padding:2px 0;border-bottom:1px dashed rgba(156,151,139,.18)}
+#log .n{font-family:"JetBrains Mono",monospace;color:var(--sub);margin-right:4px}
+#log .ok{color:var(--txt)} #log .act{color:var(--amber)} #log .bad{color:var(--rust)} #log .dim{color:var(--sub)}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+label.ctl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+label.grow{flex:1 1 150px;min-width:130px}
+input[type=range]{flex:1;accent-color:var(--cyan);height:28px;min-width:60px}
+output{font-family:"JetBrains Mono",monospace;color:var(--txt);min-width:14px}
+select,button{background:#1E2128;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer}
+button.pri{border-color:var(--amber);color:var(--amber)}
+button:active{background:#262A31}
+button:disabled{opacity:.45;cursor:default}
+.tag{position:absolute;right:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none}
+.cap{position:absolute;left:10px;top:8px;font-size:12px;color:var(--sub);pointer-events:none;line-height:1.6}
+.cap b{color:var(--cyan);font-weight:600}
+#app.portrait header span{display:none}
+#app.portrait .cap{font-size:11px}
+#app.portrait #read b{font-size:13px}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 8px;font-size:12px}
+#app.portrait .role h4{font-size:11.5px}
+#app.portrait .role label{font-size:11px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>角色與劇本</h1><span>話語也是行動（§546）：事件發生 → 狀態改變 → 採取行動</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="狀態圖：七個狀態與事件轉移，目前狀態以青色標示，剛發生的轉移以琥珀色標示，到不了的狀態以虛線表示"></canvas>
+    <div class="cap" id="cap"></div><span class="tag">虛線框＝目前劇本下到不了</span></div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small>目前狀態</small><b id="rState">待命</b></div>
+      <div><small>已處理訊息</small><b id="rDone">0</b></div>
+      <div><small>可到達狀態（BFS）</small><b id="rReach" style="color:var(--cyan)">7</b></div>
+      <div><small>倉庫庫存</small><b id="rStock">1</b></div>
+    </div>
+    <div class="sec"><h3><span>訊息佇列（先進先出）</span><span id="qInfo"></span></h3><div id="queue"></div></div>
+    <div class="sec"><h3><span>各角色的劇本（勾選＝會處理這種訊息）</span></h3><div id="scripts"></div></div>
+    <div class="sec"><h3><span>訊息紀錄：誰對誰說了什麼、觸發了什麼動作</span></h3><div id="log"></div></div>
+  </div>
+  <div id="ctrl" class="box">
+    <div class="btns">
+      <button id="bOrder" class="pri">A 喊：石板！</button>
+      <button id="bNext">下一輪</button>
+      <button id="bStep">處理下一則</button>
+      <button id="bAuto">自動處理</button>
+      <button id="bReset">重設</button>
+    </div>
+    <label class="ctl grow">初始庫存 <input id="stock" type="range" min="0" max="3" step="1" value="1"><output id="oStock">1</output></label>
+    <label class="ctl">角色名稱 <select id="names"><option value="zh">工地</option><option value="ai">AI 對照</option></select></label>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+// ---------- 狀態機定義：與 source/ep13_fsm.json 完全相同 ----------
+const FSM = {
+  roles: {
+    A: { zh: "工頭 A", ai: "模型（下指令的一方）" },
+    B: { zh: "搬運 B", ai: "主機／用戶端（轉送與執行）" },
+    C: { zh: "倉管 C", ai: "工具伺服器／資料來源" }
+  },
+  states: ["待命", "已下令", "取料中", "缺料", "補貨中", "搬運中", "完成"],
+  start: "待命",
+  events: [
+    { id: "order",    zh: "「石板！」", from: "A", to: "B", src: ["待命"],           dst: "已下令", emit: ["fetch"] },
+    { id: "fetch",    zh: "取料",       from: "B", to: "C", src: ["已下令"],         dst: "取料中", emit: ["handover|short"] },
+    { id: "handover", zh: "交料",       from: "C", to: "B", src: ["取料中", "補貨中"], dst: "搬運中", emit: ["deliver"] },
+    { id: "deliver",  zh: "送達",       from: "B", to: "A", src: ["搬運中"],         dst: "完成",   emit: [] },
+    { id: "short",    zh: "缺料",       from: "C", to: "A", src: ["取料中"],         dst: "缺料",   emit: ["restock"] },
+    { id: "restock",  zh: "補貨",       from: "A", to: "C", src: ["缺料"],           dst: "補貨中", emit: ["handover"] },
+    { id: "next",     zh: "下一輪",     from: "A", to: "B", src: ["完成"],           dst: "待命",   emit: [] }
+  ],
+  stock: { initial: 1, restock_amount: 2 }
+};
+const $ = id => document.getElementById(id);
+const C = { cyan: "#56B6C2", amber: "#E39A4E", rust: "#C9644A", blue: "#6FA3D8", clay: "#B9825A", moss: "#8FB573", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D" };
+const ROLE_COL = { A: "#E39A4E", B: "#B9825A", C: "#8FB573" };
+const EV = Object.fromEntries(FSM.events.map(e => [e.id, e]));
+const app = $("app"), cv = $("cv"), ctx = cv.getContext("2d");
+// 狀態圖上的位置（0–1）：上排 待命→已下令→取料中，右側往下 缺料→補貨中，下排 搬運中→完成，完成回到待命
+const POS = { "待命": [0.14, 0.24], "已下令": [0.5, 0.24], "取料中": [0.86, 0.24], "缺料": [0.86, 0.54], "補貨中": [0.86, 0.84], "搬運中": [0.5, 0.84], "完成": [0.14, 0.84] };
+
+let scripts, state, stock, queue, done, log, lastEdge, stuck, timer = null, names = "zh", msgNo = 0;
+const roleName = r => names === "zh" ? FSM.roles[r].zh : FSM.roles[r].ai.replace(/（.*）/, "");
+
+function fullScripts() { const s = { A: new Set(), B: new Set(), C: new Set() }; FSM.events.forEach(e => s[e.to].add(e.id)); return s; }
+function reset(keepScripts) {
+  stopAuto();
+  if (!keepScripts) scripts = fullScripts();
+  state = FSM.start; stock = +$("stock").value; queue = []; done = 0; log = []; lastEdge = null; stuck = false; msgNo = 0;
+  renderScripts(); draw();
+}
+// BFS：只走收件者劇本裡有的事件；分支兩條都算
+function reachable() {
+  const seen = new Set([FSM.start]), q = [FSM.start];
+  while (q.length) {
+    const s = q.shift();
+    for (const e of FSM.events) if (e.src.includes(s) && scripts[e.to].has(e.id) && !seen.has(e.dst)) { seen.add(e.dst); q.push(e.dst); }
+  }
+  return seen;
+}
+function push(id) { queue.push(id); stuck = false; }
+function addLog(cls, html) { log.push({ cls, html }); if (log.length > 200) log.shift(); }
+// 處理佇列最前面的一則訊息；回傳 false 表示沒有可處理的
+function processOne() {
+  if (!queue.length) return false;
+  const id = queue[0], e = EV[id];
+  if (!scripts[e.to].has(id)) {
+    if (!stuck) addLog("bad", `${roleName(e.to)} 的劇本裡沒有「${e.zh}」：訊息卡在佇列，流程停住。`);
+    stuck = true; return false;
+  }
+  queue.shift(); msgNo++;
+  if (!e.src.includes(state)) {
+    addLog("dim", `<span class="n">#${msgNo}</span>${roleName(e.from)} → ${roleName(e.to)}：${e.zh}　退回（現在是「${state}」，這個時候不能處理）`);
+    return true;
+  }
+  const from = state; state = e.dst; done++; lastEdge = { id, from, to: state };
+  addLog("ok", `<span class="n">#${msgNo}</span><b style="color:${ROLE_COL[e.from]}">${roleName(e.from)}</b> → <b style="color:${ROLE_COL[e.to]}">${roleName(e.to)}</b>：${e.zh}　<span class="dim">${from} ⇒ ${state}</span>`);
+  for (const em of e.emit) {
+    let nid = em;
+    if (em === "handover|short") {
+      if (stock > 0) { stock--; nid = "handover"; addLog("act", `　↳ ${roleName("C")} 查庫存：有料，扣 1（剩 ${stock}），送出「交料」給 ${roleName("B")}`); }
+      else { nid = "short"; addLog("act", `　↳ ${roleName("C")} 查庫存：沒有料，送出「缺料」給 ${roleName("A")}`); }
+    } else if (em === "handover" && id === "restock") {
+      stock += FSM.stock.restock_amount - 1;
+      addLog("act", `　↳ ${roleName("C")} 補進 ${FSM.stock.restock_amount} 件、交出 1 件（剩 ${stock}），送出「交料」給 ${roleName("B")}`);
+    } else {
+      const ne = EV[nid]; addLog("act", `　↳ ${roleName(ne.from)} 採取行動：送出「${ne.zh}」給 ${roleName(ne.to)}`);
+    }
+    push(nid);
+  }
+  if (!e.emit.length && id === "deliver") addLog("act", `　↳ 石板送到 ${roleName("A")} 手上。這一輪完成。`);
+  return true;
+}
+function stopAuto() { if (timer) { clearInterval(timer); timer = null; } $("bAuto").textContent = "自動處理"; }
+function auto() {
+  if (timer) { stopAuto(); return; }
+  $("bAuto").textContent = "暫停";
+  timer = setInterval(() => { const ok = processOne(); draw(); if (!ok) stopAuto(); }, 650);
+}
+
+// ---------- 畫面 ----------
+function fit(c) {
+  const r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  c.width = Math.max(1, r.width * dpr | 0); c.height = Math.max(1, r.height * dpr | 0);
+  c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0); return { w: r.width, h: r.height };
+}
+let SW = 0, SH = 0;
+function layout() { app.classList.toggle("portrait", innerHeight > innerWidth * 1.05); ({ w: SW, h: SH } = fit(cv)); draw(); }
+function nodeBox(s) {
+  const top = 34, padB = 18, w = Math.max(54, Math.min(96, SW * 0.2)), h = Math.max(30, Math.min(44, (SH - top) * 0.15));
+  const [px, py] = POS[s]; return { x: 8 + w / 2 + px * 0 + (SW - 16 - w) * ((px - 0.14) / 0.72), y: top + h / 2 + (SH - top - padB - h) * ((py - 0.24) / 0.6), w, h };
+}
+function edgePoint(b, tx, ty) {     // 從方框中心往 (tx,ty) 的射線與框邊的交點
+  const dx = tx - b.x, dy = ty - b.y, sx = (b.w / 2 + 3) / Math.abs(dx || 1e-9), sy = (b.h / 2 + 3) / Math.abs(dy || 1e-9), s = Math.min(sx, sy);
+  return [b.x + dx * s, b.y + dy * s];
+}
+function drawEdge(from, to, ev, hot, enabled) {
+  const a = nodeBox(from), b = nodeBox(to);
+  const [x1, y1] = edgePoint(a, b.x, b.y), [x2, y2] = edgePoint(b, a.x, a.y);
+  ctx.strokeStyle = hot ? C.amber : (enabled ? "rgba(237,230,214,.45)" : "rgba(156,151,139,.25)");
+  ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = hot ? 3 : 1.4; ctx.setLineDash(enabled ? [] : [4, 4]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]);
+  const ang = Math.atan2(y2 - y1, x2 - x1), s = hot ? 10 : 8;
+  ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - s * Math.cos(ang - 0.4), y2 - s * Math.sin(ang - 0.4)); ctx.lineTo(x2 - s * Math.cos(ang + 0.4), y2 - s * Math.sin(ang + 0.4)); ctx.fill();
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, fs = Math.max(10, Math.min(12.5, SW * 0.028));
+  const label = `${ev.zh}  ${ev.from}→${ev.to}`;
+  ctx.font = `${fs}px 'Noto Serif TC',serif`; const tw = ctx.measureText(label).width;
+  const vertical = Math.abs(x2 - x1) < 4;
+  const lx = vertical ? Math.min(mx + 6, SW - tw - 4) : mx - tw / 2, ly = vertical ? my : my - 9;
+  ctx.fillStyle = "rgba(14,15,18,.85)"; ctx.fillRect(lx - 3, ly - fs * 0.7, tw + 6, fs * 1.4);
+  ctx.fillStyle = hot ? C.amber : (enabled ? C.txt : C.sub); ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(label, lx, ly);
+}
+function drawStage() {
+  if (!SW) return;
+  ctx.clearRect(0, 0, SW, SH);
+  const reach = reachable();
+  $("cap").innerHTML = `目前：<b>${state}</b>${stuck ? "　<span style='color:#C9644A'>流程停住</span>" : ""}`;
+  // 邊：每個 (事件, 來源狀態) 一條
+  for (const e of FSM.events) for (const s of e.src) {
+    const hot = lastEdge && lastEdge.id === e.id && lastEdge.from === s;
+    drawEdge(s, e.dst, e, hot, scripts[e.to].has(e.id) && reach.has(s));
+  }
+  for (const s of FSM.states) {
+    const b = nodeBox(s), cur = s === state, ok = reach.has(s);
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 8) : ctx.rect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+    ctx.fillStyle = cur ? "rgba(86,182,194,.28)" : "rgba(30,33,40,.95)"; ctx.fill();
+    ctx.strokeStyle = cur ? C.cyan : (ok ? "rgba(237,230,214,.55)" : "rgba(156,151,139,.5)"); ctx.lineWidth = cur ? 2.5 : 1.2;
+    ctx.setLineDash(ok ? [] : [4, 3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = ok ? C.txt : C.sub; ctx.font = `600 ${Math.max(12, Math.min(15, b.w * 0.2))}px 'Noto Serif TC',serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(s, b.x, b.y - (ok ? 0 : 6));
+    if (!ok) { ctx.font = "10px 'Noto Serif TC',serif"; ctx.fillText("到不了", b.x, b.y + 9); }
+  }
+}
+function renderQueue() {
+  $("queue").innerHTML = queue.length ? queue.map((id, i) => { const e = EV[id]; return `<span class="chip ${i === 0 ? (stuck ? "stuck" : "head") : ""}">${e.from}→${e.to} ${e.zh}</span>`; }).join("") : `<span class="empty">（空）按「A 喊：石板！」送出第一則訊息</span>`;
+  $("qInfo").textContent = queue.length ? `${queue.length} 則` : "";
+}
+function renderScripts() {
+  $("scripts").innerHTML = ["A", "B", "C"].map(r => {
+    const evs = FSM.events.filter(e => e.to === r);
+    return `<div class="role"><h4 style="color:${ROLE_COL[r]}">${roleName(r)}</h4>${evs.map(e => `<label><input type="checkbox" data-r="${r}" data-e="${e.id}" ${scripts[r].has(e.id) ? "checked" : ""}>${e.zh}</label>`).join("")}<small>收到就處理</small></div>`;
+  }).join("");
+}
+function renderLog() {
+  const el = $("log");
+  el.innerHTML = log.length ? log.map(l => `<div class="${l.cls}">${l.html}</div>`).join("") : `<div class="dim">還沒有訊息。</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+function readout() {
+  const n = reachable().size;
+  $("rState").textContent = state; $("rDone").textContent = done; $("rReach").textContent = `${n} / ${FSM.states.length}`; $("rStock").textContent = stock;
+  $("bStep").disabled = !queue.length;
+}
+function draw() { drawStage(); renderQueue(); renderLog(); readout(); }
+
+// ---------- 互動 ----------
+$("scripts").addEventListener("change", e => {
+  const t = e.target; if (!t.dataset.e) return;
+  const set = scripts[t.dataset.r];
+  if (t.checked) set.add(t.dataset.e); else set.delete(t.dataset.e);
+  addLog("dim", `${roleName(t.dataset.r)} 的劇本${t.checked ? "加回" : "拿掉"}「${EV[t.dataset.e].zh}」。可到達狀態變成 ${reachable().size} 個。`);
+  stuck = false; draw();
+});
+$("bOrder").onclick = () => { push("order"); addLog("dim", `你讓 ${roleName("A")} 喊出「石板！」，訊息進入佇列。`); draw(); };
+$("bNext").onclick = () => { push("next"); addLog("dim", `你讓 ${roleName("A")} 宣布「下一輪」，訊息進入佇列。`); draw(); };
+$("bStep").onclick = () => { stopAuto(); processOne(); draw(); };
+$("bAuto").onclick = auto;
+$("bReset").onclick = () => reset(false);
+$("stock").oninput = e => { $("oStock").textContent = e.target.value; reset(true); };
+$("names").onchange = e => { names = e.target.value; renderScripts(); draw(); };
+
+reset(false);
+new ResizeObserver(layout).observe(document.body);
+// 供檢查用：與 calc_u13.py 對照
+window.__u13 = {
+  reach(drop) { const keep = scripts; scripts = fullScripts(); if (drop) scripts[drop[0]].delete(drop[1]); const n = reachable().size; scripts = keep; return n; },
+  twoRounds() { reset(false); push("order"); while (processOne()); push("next"); while (processOne()); push("order"); while (processOne()); const r = { done, state, stock }; draw(); return r; }
+};
+})();
+</script>
+</body>
+</html>

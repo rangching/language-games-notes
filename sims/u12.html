@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>貝爾曼格子世界</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--blue:#6FA3D8;--cyan:#56B6C2;--rust:#C9644A}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1.25fr) minmax(0,1fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation;cursor:pointer}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+#read{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line);font-size:12.5px;line-height:1.7}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:5px}
+.sec p{color:var(--txt)}
+.sec .dim{color:var(--sub)}
+#qtab{width:100%;border-collapse:collapse;font-family:"JetBrains Mono",monospace;font-size:12px}
+#qtab td{padding:2px 4px;border-bottom:1px dashed rgba(156,151,139,.25);white-space:nowrap}
+#qtab tr.best td{color:var(--cyan);font-weight:600}
+#hist{display:block;width:100%;height:70px;cursor:default}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:6px 10px}
+label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+label.grow{flex:1 1 170px;min-width:150px}
+input[type=range]{flex:1;accent-color:var(--cyan);height:28px;min-width:70px}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--cyan)}
+output{font-family:"JetBrains Mono",monospace;color:var(--txt);min-width:38px}
+select,button{background:#1E2128;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer}
+button.pri{border-color:var(--cyan);color:var(--cyan)}
+button:active{background:#262A31}
+button:disabled{opacity:.45;cursor:default}
+.tag{position:absolute;right:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none}
+.cap{position:absolute;left:10px;top:8px;font-size:12px;color:var(--sub);pointer-events:none;line-height:1.6}
+.cap b{color:var(--cyan);font-family:"JetBrains Mono",monospace;font-weight:600}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+#app.portrait header span{display:none}
+#app.portrait .cap{font-size:11px}
+#app.portrait label.grow{flex:1 1 130px;min-width:120px}
+#app.portrait #read b{font-size:13px}
+#app.portrait #ctrl{gap:4px 10px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 8px;font-size:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>貝爾曼格子世界</h1><span>價值迭代：今天的價值＝這一步的得失＋打過折的明天的價值</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="5×5 格子世界：每格顯示目前的價值與最佳行動箭頭，點格子可編輯或查看計算"></canvas>
+    <div class="cap" id="cap"></div><span class="tag" id="tag">點格子＝切換類型</span></div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small>迭代次數</small><b id="rIt">0</b></div>
+      <div><small>最大變動量</small><b id="rD">—</b></div>
+      <div><small>起點價值</small><b id="rS" style="color:var(--cyan)">—</b></div>
+      <div><small>狀態</small><b id="rC">未開始</b></div>
+    </div>
+    <div class="sec" id="qbox"><h3 id="qTitle">這一格怎麼算（切到「查看計算」再點格子）</h3><div id="qbody" class="dim">選一格，這裡列出四個行動各自的 Q 值：Q(s,a)＝Σ 機率 ×［每步代價＋γ×下一格的價值］。最大的那個就是這格的新價值，也就是箭頭方向。</div></div>
+    <div class="sec"><h3>每一步的最大變動量（越來越小＝快收斂了）</h3><canvas id="hist" aria-label="每次迭代的最大變動量長條圖"></canvas></div>
+    <div class="sec"><h3>規則</h3>
+      <p class="dim">終點 <span style="color:var(--cyan)">G</span> 固定 +1、陷阱 <span style="color:var(--rust)">T</span> 固定 −1，走到就結束。撞牆或出界留在原地。開啟滑動時，80% 照指令走，各 10% 偏向左右兩側。所有格子從 0 開始，每一步用上一輪的全部數值同步更新；最大變動量小於 0.0001 就算收斂。預設設定和 <span class="mono">calc_u12.py</span> 完全相同。</p></div>
+  </div>
+  <div id="ctrl" class="box">
+    <div class="btns">
+      <button id="bStep" class="pri">走一步</button>
+      <button id="bRun" class="pri">跑到收斂</button>
+      <button id="bZero">數值歸零</button>
+      <button id="bReset">還原預設</button>
+    </div>
+    <label class="grow">折扣 γ <input id="gam" type="range" min="0.5" max="0.99" step="0.01" value="0.9"><output id="oGam">0.90</output></label>
+    <label class="grow">每步代價 <input id="cost" type="range" min="-0.5" max="0" step="0.01" value="-0.04"><output id="oCost">−0.04</output></label>
+    <label><input id="slip" type="checkbox" checked>行動會滑動</label>
+    <label>點格子 <select id="mode"><option value="edit">切換類型</option><option value="look">查看計算</option></select></label>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+// ---------- 預設設定：與 source/ep12_gridworld.json 完全相同 ----------
+const CFG = {
+  grid: ["....G", ".#..T", ".#.#.", "...T.", "S...."],
+  terminal_values: { G: 1, T: -1 },
+  gamma: 0.9, step_cost: -0.04,
+  slip: { on: true, forward: 0.8, left: 0.1, right: 0.1 },
+  actions: ["N", "E", "S", "W"], init_value: 0, tol: 0.0001
+};
+const $ = id => document.getElementById(id);
+const C = { cyan: "#56B6C2", rust: "#C9644A", amber: "#E39A4E", blue: "#6FA3D8", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D", wall: "#3A3F4A" };
+const MOVES = { N: [-1, 0], E: [0, 1], S: [1, 0], W: [0, -1] };
+const LEFT = { N: "W", E: "N", S: "E", W: "S" }, RIGHT = { N: "E", E: "S", S: "W", W: "N" };
+const ARW = { N: "↑", E: "→", S: "↓", W: "←" }, ZH = { N: "上", E: "右", S: "下", W: "左" };
+const app = $("app"), cv = $("cv"), ctx = cv.getContext("2d"), hi = $("hist"), hx = hi.getContext("2d");
+
+let grid, R, Cn, start, gamma, cost, slipOn, V, it, lastDelta, deltas, converged, sel = null, timer = null;
+
+function loadDefault() {
+  grid = CFG.grid.map(row => row.split(""));
+  R = grid.length; Cn = grid[0].length;
+  for (let r = 0; r < R; r++) for (let c = 0; c < Cn; c++) if (grid[r][c] === "S") start = [r, c];
+  gamma = CFG.gamma; cost = CFG.step_cost; slipOn = CFG.slip.on;
+  $("gam").value = gamma; $("cost").value = cost; $("slip").checked = slipOn;
+  zero();
+}
+const isTerm = ch => ch === "G" || ch === "T";
+function zero() {
+  V = grid.map(row => row.map(ch => isTerm(ch) ? CFG.terminal_values[ch] : CFG.init_value));
+  it = 0; lastDelta = null; deltas = []; converged = false; stop();
+  draw();
+}
+function step(r, c, a) {
+  const nr = r + MOVES[a][0], nc = c + MOVES[a][1];
+  if (nr < 0 || nr >= R || nc < 0 || nc >= Cn || grid[nr][nc] === "#") return [r, c];   // 撞牆或出界：留在原地
+  return [nr, nc];
+}
+function outcomes(a) {
+  return slipOn ? [[CFG.slip.forward, a], [CFG.slip.left, LEFT[a]], [CFG.slip.right, RIGHT[a]]] : [[1.0, a]];
+}
+function q(Vs, r, c, a) {          // 與 calc_u12.py 相同的加總順序
+  let s = 0;
+  for (const [p, d] of outcomes(a)) { const [nr, nc] = step(r, c, d); s += p * (cost + gamma * Vs[nr][nc]); }
+  return s;
+}
+function bestAction(Vs, r, c) {
+  let best = -Infinity, ba = "N";
+  for (const a of CFG.actions) { const v = q(Vs, r, c, a); if (v > best) { best = v; ba = a; } }
+  return ba;
+}
+// 一次同步更新（貝爾曼最佳性算子）
+function sweep() {
+  if (converged) return;
+  const nv = V.map(row => row.slice());
+  let d = 0;
+  for (let r = 0; r < R; r++) for (let c = 0; c < Cn; c++) {
+    const ch = grid[r][c];
+    if (isTerm(ch) || ch === "#") continue;
+    let m = -Infinity;
+    for (const a of CFG.actions) m = Math.max(m, q(V, r, c, a));
+    nv[r][c] = m; d = Math.max(d, Math.abs(m - V[r][c]));
+  }
+  V = nv; it++; lastDelta = d; deltas.push(d);
+  if (d < CFG.tol) converged = true;
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; } $("bRun").textContent = "跑到收斂"; }
+function run() {
+  if (timer) { stop(); return; }
+  if (converged) return;
+  $("bRun").textContent = "暫停";
+  timer = setInterval(() => { sweep(); draw(); if (converged || it > 5000) stop(); }, 90);
+}
+
+// ---------- 版面 ----------
+function fit(c) {
+  const r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  c.width = Math.max(1, r.width * dpr | 0); c.height = Math.max(1, r.height * dpr | 0);
+  c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0); return { w: r.width, h: r.height };
+}
+let SW = 0, SH = 0, HW = 0, HH = 0, geo = null;
+function layout() {
+  app.classList.toggle("portrait", innerHeight > innerWidth * 1.05);
+  ({ w: SW, h: SH } = fit(cv)); ({ w: HW, h: HH } = fit(hi)); draw();
+}
+function valColor(v, alpha) {
+  const t = Math.max(-1, Math.min(1, v));
+  if (t >= 0) return `rgba(86,182,194,${(alpha * (0.08 + 0.72 * t)).toFixed(3)})`;
+  return `rgba(201,100,74,${(alpha * (0.08 + 0.72 * -t)).toFixed(3)})`;
+}
+const fmt = (v, n) => (v < 0 ? "−" : (v > 0 ? "+" : "")) + Math.abs(v).toFixed(n);
+function drawStage() {
+  if (!SW) return;
+  ctx.clearRect(0, 0, SW, SH);
+  $("cap").innerHTML = `γ＝<b>${gamma.toFixed(2)}</b>　每步代價＝<b>${fmt(cost, 2)}</b>　${slipOn ? "滑動 80／10／10" : "不滑動"}`;
+  const top = 30, pad = 10, cell = Math.max(20, Math.min((SW - 2 * pad) / Cn, (SH - top - pad - 4) / R));
+  const ox = (SW - cell * Cn) / 2, oy = top + (SH - top - pad - cell * R) / 2;
+  geo = { ox, oy, cell };
+  const fs = Math.max(9, Math.min(16, cell * 0.2));
+  for (let r = 0; r < R; r++) for (let c = 0; c < Cn; c++) {
+    const x = ox + c * cell, y = oy + r * cell, ch = grid[r][c];
+    if (ch === "#") { ctx.fillStyle = C.wall; ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+      ctx.save(); ctx.beginPath(); ctx.rect(x + 1, y + 1, cell - 2, cell - 2); ctx.clip();
+      ctx.strokeStyle = "rgba(237,230,214,.10)"; ctx.lineWidth = 1;
+      for (let k = -cell; k < cell; k += 8) { ctx.beginPath(); ctx.moveTo(x + k, y + cell); ctx.lineTo(x + k + cell, y); ctx.stroke(); }
+      ctx.restore();
+      continue; }
+    ctx.fillStyle = valColor(V[r][c], 1); ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    if (isTerm(ch)) {
+      ctx.strokeStyle = ch === "G" ? C.cyan : C.rust; ctx.lineWidth = 2; ctx.strokeRect(x + 3, y + 3, cell - 6, cell - 6);
+      ctx.fillStyle = C.txt; ctx.font = `600 ${fs * 1.4}px 'JetBrains Mono',monospace`;
+      ctx.fillText(ch === "G" ? "+1" : "−1", x + cell / 2, y + cell / 2 - fs * 0.35);
+      ctx.fillStyle = C.sub; ctx.font = `${fs * 0.85}px 'Noto Serif TC',serif`;
+      ctx.fillText(ch === "G" ? "終點" : "陷阱", x + cell / 2, y + cell / 2 + fs * 0.95);
+      continue;
+    }
+    ctx.fillStyle = C.txt; ctx.font = `600 ${fs}px 'JetBrains Mono',monospace`;
+    ctx.fillText(fmt(V[r][c], 2), x + cell / 2, y + cell * 0.7);
+    if (it > 0) {
+      const a = bestAction(V, r, c), cx = x + cell / 2, cy = y + cell * 0.34, L = cell * 0.17;
+      const [dy, dx] = MOVES[a];
+      ctx.strokeStyle = C.amber; ctx.fillStyle = C.amber; ctx.lineWidth = Math.max(1.5, cell * 0.035);
+      ctx.beginPath(); ctx.moveTo(cx - dx * L, cy - dy * L); ctx.lineTo(cx + dx * L, cy + dy * L); ctx.stroke();
+      const hx2 = cx + dx * L, hy2 = cy + dy * L, s = cell * 0.08;
+      ctx.beginPath(); ctx.moveTo(hx2 + dx * s, hy2 + dy * s);
+      ctx.lineTo(hx2 - dx * s * 0.6 + dy * s, hy2 - dy * s * 0.6 + dx * s);
+      ctx.lineTo(hx2 - dx * s * 0.6 - dy * s, hy2 - dy * s * 0.6 - dx * s); ctx.fill();
+    }
+    if (ch === "S") { ctx.fillStyle = C.amber; ctx.font = `600 ${fs * 0.8}px 'JetBrains Mono',monospace`; ctx.textAlign = "left"; ctx.fillText("S", x + 5, y + fs * 0.7); }
+    if (sel && sel[0] === r && sel[1] === c) { ctx.strokeStyle = C.txt; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.strokeRect(x + 2, y + 2, cell - 4, cell - 4); ctx.setLineDash([]); }
+  }
+}
+function drawHist() {
+  if (!HW) return;
+  hx.clearRect(0, 0, HW, HH);
+  if (!deltas.length) { hx.fillStyle = C.sub; hx.font = "11px 'Noto Serif TC',serif"; hx.fillText("按「走一步」開始", 6, HH / 2); return; }
+  const n = deltas.length, bw = Math.min(14, HW / n), mx = Math.max(...deltas);
+  // 對數刻度，看得到收斂門檻 0.0001
+  const lo = Math.log10(CFG.tol / 10), hiL = Math.log10(Math.max(mx, CFG.tol * 10));
+  const ypos = v => HH - 4 - (HH - 10) * (Math.log10(Math.max(v, 1e-12)) - lo) / (hiL - lo);
+  deltas.forEach((d, i) => {
+    const y = Math.max(2, Math.min(HH - 4, ypos(d)));
+    hx.fillStyle = d < CFG.tol ? C.cyan : "rgba(111,163,216,.6)";
+    hx.fillRect(i * bw + bw * 0.15, y, bw * 0.7, HH - 4 - y);
+  });
+  const yt = ypos(CFG.tol);
+  hx.strokeStyle = C.amber; hx.setLineDash([4, 3]); hx.beginPath(); hx.moveTo(0, yt); hx.lineTo(HW, yt); hx.stroke(); hx.setLineDash([]);
+  hx.fillStyle = C.amber; hx.font = "10px 'JetBrains Mono',monospace"; hx.textAlign = "right"; hx.fillText("門檻 0.0001", HW - 4, yt - 3); hx.textAlign = "left";
+}
+function drawQ() {
+  if (!sel) return;
+  const [r, c] = sel, ch = grid[r][c];
+  $("qTitle").textContent = `第 ${r + 1} 列、第 ${c + 1} 欄的計算（用目前的數值）`;
+  if (ch === "#") { $("qbody").innerHTML = "這是牆，沒有價值。"; return; }
+  if (isTerm(ch)) { $("qbody").innerHTML = `${ch === "G" ? "終點" : "陷阱"}：數值固定為 ${ch === "G" ? "+1" : "−1"}，走到就結束，不更新。`; return; }
+  const qs = CFG.actions.map(a => [a, q(V, r, c, a)]), b = bestAction(V, r, c);
+  const rows = qs.map(([a, v]) => {
+    const parts = outcomes(a).map(([p, d]) => { const [nr, nc] = step(r, c, d); return `${p}×(${fmt(cost, 2)}＋${gamma.toFixed(2)}×${fmt(V[nr][nc], 3)})`; }).join("＋");
+    return `<tr class="${a === b ? "best" : ""}"><td>${ARW[a]} 往${ZH[a]}</td><td>${fmt(v, 4)}</td></tr><tr><td colspan="2" style="color:#9C978B;font-size:10.5px;white-space:normal">${parts}</td></tr>`;
+  }).join("");
+  $("qbody").innerHTML = `<table id="qtab">${rows}</table><p class="dim" style="margin-top:4px">下一步這格會變成最大的那個：${fmt(Math.max(...qs.map(x => x[1])), 4)}（目前 ${fmt(V[r][c], 4)}）。</p>`;
+}
+function readout() {
+  $("rIt").textContent = it;
+  $("rD").textContent = lastDelta == null ? "—" : (lastDelta < 0.001 ? lastDelta.toExponential(2) : lastDelta.toFixed(4));
+  $("rS").textContent = fmt(V[start[0]][start[1]], 3);
+  $("rC").textContent = converged ? "已收斂" : (it ? "更新中" : "未開始");
+  $("rC").style.color = converged ? C.cyan : C.txt;
+  $("bStep").disabled = converged; $("bRun").disabled = converged && !timer;
+}
+function draw() { drawStage(); drawHist(); drawQ(); readout(); }
+
+// ---------- 互動 ----------
+const CYCLE = { ".": "#", "#": "T", "T": "G", "G": "." };
+cv.addEventListener("click", e => {
+  if (!geo) return;
+  const rect = cv.getBoundingClientRect(), x = e.clientX - rect.left - geo.ox, y = e.clientY - rect.top - geo.oy;
+  const c = Math.floor(x / geo.cell), r = Math.floor(y / geo.cell);
+  if (r < 0 || r >= R || c < 0 || c >= Cn) return;
+  if ($("mode").value === "look") { sel = [r, c]; draw(); return; }
+  if (grid[r][c] === "S") return;                          // 起點不能改
+  grid[r][c] = CYCLE[grid[r][c]] || ".";
+  sel = null; zero();
+});
+$("bStep").onclick = () => { stop(); sweep(); draw(); };
+$("bRun").onclick = run;
+$("bZero").onclick = zero;
+$("bReset").onclick = () => { sel = null; loadDefault(); $("oGam").textContent = gamma.toFixed(2); $("oCost").textContent = fmt(cost, 2).replace("+", ""); };
+$("gam").oninput = e => { gamma = +e.target.value; $("oGam").textContent = gamma.toFixed(2); zero(); };
+$("cost").oninput = e => { cost = +e.target.value; $("oCost").textContent = cost === 0 ? "0.00" : fmt(cost, 2); zero(); };
+$("slip").onchange = e => { slipOn = e.target.checked; zero(); };
+$("mode").onchange = e => { $("tag").textContent = e.target.value === "look" ? "點格子＝看這格怎麼算" : "點格子＝切換類型（空格→牆→陷阱→終點）"; if (e.target.value === "edit") { sel = null; draw(); } };
+
+loadDefault();
+new ResizeObserver(layout).observe(document.body);
+// 供檢查用：與 calc_u12.py 對照
+window.__u12 = { runToConvergence() { loadDefault(); while (!converged && it < 5000) sweep(); return { it, start: V[start[0]][start[1]], delta: lastDelta }; } };
+})();
+</script>
+</body>
+</html>

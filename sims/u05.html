@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>家族相似探索器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.93);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--moss:#8FB573;--rust:#C9644A;--blue:#6FA3D8}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+#read{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:6px}
+.sec p{font-size:12.5px;line-height:1.75}
+.sec p.dim{color:var(--sub)}
+.sec p b{color:var(--amber);font-weight:600}
+#mat{display:block;width:100%;height:auto}
+#feats{display:flex;flex-wrap:wrap;gap:5px}
+.ft{font-size:12px;border-radius:7px;padding:3px 8px;border:1px solid var(--line);background:#1B1E24;color:var(--sub);cursor:pointer;min-height:28px;font-family:inherit}
+.ft.on{border-color:var(--amber);color:var(--amber);background:rgba(227,154,78,.12)}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:6px 10px}
+label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+label.grow{flex:1 1 200px;min-width:160px}
+input[type=range]{flex:1;accent-color:var(--moss);height:28px;min-width:80px}
+input[type=checkbox]{accent-color:var(--amber);width:18px;height:18px}
+output{font-family:"JetBrains Mono",monospace;color:var(--txt);min-width:34px}
+select,button{background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer}
+button:active{background:#262A31}
+.cap{position:absolute;left:10px;top:8px;right:10px;font-size:12px;color:var(--sub);pointer-events:none;line-height:1.6}
+.cap b{color:var(--moss);font-family:"JetBrains Mono",monospace;font-weight:600}
+.tag{position:absolute;right:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none}
+#err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:20px;text-align:center;color:var(--rust);font-size:14px;line-height:1.8}
+#app.portrait header span{display:none}
+#app.portrait #read b{font-size:13px}
+#app.portrait #ctrl{gap:4px 10px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 8px;font-size:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>家族相似探索器</h1><span>沒有一項特徵為全體共有，只有交錯重疊的相似（§66–§67）</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="相似之網或定義結果；點節點看它的特徵"></canvas>
+    <div class="cap" id="cap"></div><span class="tag" id="tag"></span></div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small id="l1">門檻</small><b id="r1">—</b></div>
+      <div><small id="l2">邊數</small><b id="r2">—</b></div>
+      <div><small id="l3">連通分量</small><b id="r3" style="color:var(--moss)">—</b></div>
+      <div><small id="l4">全體共有特徵</small><b id="r4">—</b></div>
+    </div>
+    <div class="sec" id="defSec" hidden><h3>勾選特徵當作「遊戲的定義」</h3><div id="feats"></div>
+      <p class="dim" style="margin-top:6px" id="defHint"></p></div>
+    <div class="sec"><h3 id="infoT">說明</h3><p id="info"></p></div>
+    <div class="sec"><h3>16 × 10 特徵矩陣（亮＝通常具備；底下數字＝這一欄亮幾格）</h3><canvas id="mat" aria-label="16 種活動乘 10 項特徵的矩陣"></canvas></div>
+    <div class="sec"><p class="dim">資料：本系列整理的示範資料（<span class="mono">source/games_features.json</span>），不是原書內容；特徵取捨不同，數字會變。「非遊戲對照組」5 項為本頁自訂，只用來看定義「多收了誰」。</p></div>
+  </div>
+  <div id="ctrl" class="box">
+    <label>模式 <select id="mode"><option value="net">相似之網</option><option value="def">下定義</option></select></label>
+    <label class="grow" id="lTh">相似門檻 J ≥ <input id="th" type="range" min="0.1" max="1" step="0.05" value="0.5"><output id="oTh">0.50</output></label>
+    <label id="lOp" hidden>定義方式 <select id="op"><option value="and">全部具備（且）</option><option value="or">至少一項（或）</option></select></label>
+    <label id="lCon" hidden><input type="checkbox" id="con" checked> 顯示非遊戲對照組</label>
+    <button id="bClr">清除選取</button>
+  </div>
+  <div id="err">找不到資料檔 <span class="mono">../data/games.js</span>（window.GAMES）。<br>請確認網站的 data 資料夾已產生。</div>
+</div>
+<script src="../data/games.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+if (!window.GAMES || !GAMES.items || !GAMES.features) { $("err").style.display = "flex"; return; }
+const C = { amber: "#E39A4E", clay: "#B9825A", moss: "#8FB573", rust: "#C9644A", blue: "#6FA3D8", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D" };
+const F = GAMES.features, G = GAMES.items, n = G.length, m = F.length;
+// 非遊戲對照組（本頁自訂，只在「下定義」模式用來看「多收了誰」；特徵順序同 F）
+const NON = [
+  { zh: "戰爭", f: [1, 1, 1, 1, 1, 1, 1, 0, 0, 1] },
+  { zh: "選舉", f: [1, 1, 0, 1, 1, 1, 0, 0, 1, 1] },
+  { zh: "法庭訴訟", f: [1, 1, 0, 1, 1, 1, 0, 0, 0, 1] },
+  { zh: "學測考試", f: [0, 0, 1, 1, 0, 1, 0, 0, 1, 0] },
+  { zh: "上班開會", f: [0, 1, 1, 0, 0, 1, 0, 0, 0, 0] }
+].filter(x => x.f.length === m);
+const KIND_COL = {};
+const palette = ["#E39A4E", "#B9825A", "#8FB573", "#6FA3D8", "#A58BD0", "#D9C27A", "#C98A6E", "#9FB6C9"];
+[...new Set(G.map(g => g.kind))].forEach((k, i) => KIND_COL[k] = palette[i % palette.length]);
+
+// ---------- 計算：Jaccard 矩陣、全體共有特徵 ----------
+const J = G.map(a => G.map(b => {
+  let both = 0, either = 0;
+  for (let j = 0; j < m; j++) { both += a.f[j] && b.f[j] ? 1 : 0; either += a.f[j] || b.f[j] ? 1 : 0; }
+  return either ? both / either : 0;
+}));
+const colCount = F.map((_, j) => G.reduce((s, g) => s + g.f[j], 0));
+const commonAll = colCount.filter(c => c === n).length;
+
+function graph(t) {
+  const adj = G.map(() => []); let E = 0;
+  for (let i = 0; i < n; i++) for (let k = i + 1; k < n; k++) if (J[i][k] >= t - 1e-9) { adj[i].push(k); adj[k].push(i); E++; }
+  const comp = Array(n).fill(-1); let nc = 0;
+  for (let s = 0; s < n; s++) {
+    if (comp[s] >= 0) continue;
+    const q = [s]; comp[s] = nc;
+    while (q.length) { const u = q.shift(); for (const v of adj[u]) if (comp[v] < 0) { comp[v] = nc; q.push(v); } }
+    nc++;
+  }
+  return { adj, E, comp, nc };
+}
+function bfsPath(adj, s, t) {
+  const prev = Array(n).fill(-1), seen = Array(n).fill(false), q = [s]; seen[s] = true;
+  while (q.length) { const u = q.shift(); if (u === t) break; for (const v of adj[u]) if (!seen[v]) { seen[v] = true; prev[v] = u; q.push(v); } }
+  if (!seen[t]) return null;
+  const p = []; for (let v = t; v !== -1; v = prev[v]) p.unshift(v); return p;
+}
+
+// ---------- 版面：用相似度當彈簧的力導向配置（固定初值，只算一次，位置不隨門檻改變） ----------
+const pos = G.map((_, i) => [Math.cos(i / n * 2 * Math.PI), Math.sin(i / n * 2 * Math.PI)]);
+(function relax() {
+  for (let it = 0; it < 600; it++) {
+    const step = 0.02 * (1 - it / 600) + 0.002, d = pos.map(() => [0, 0]);
+    for (let i = 0; i < n; i++) for (let k = 0; k < n; k++) {
+      if (i === k) continue;
+      const dx = pos[k][0] - pos[i][0], dy = pos[k][1] - pos[i][1], r = Math.hypot(dx, dy) + 1e-6;
+      const want = 0.25 + 1.6 * (1 - J[i][k]);          // 越像越近
+      const f = (r - want) * (0.3 + J[i][k]);
+      d[i][0] += f * dx / r; d[i][1] += f * dy / r;
+    }
+    pos.forEach((p, i) => { p[0] += step * d[i][0]; p[1] += step * d[i][1]; });
+  }
+  const xs = pos.map(p => p[0]), ys = pos.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  pos.forEach(p => { p[0] = (p[0] - x0) / (x1 - x0 || 1); p[1] = (p[1] - y0) / (y1 - y0 || 1); });
+})();
+
+// ---------- 狀態 ----------
+let mode = "net", th = 0.5, sel = [], defSet = new Set([0, 9]), op = "and";
+const app = $("app"), cv = $("cv"), g = cv.getContext("2d"), mt = $("mat"), mx = mt.getContext("2d");
+function fit(c, hFix) {
+  const r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2), h = hFix || r.height;
+  c.width = Math.max(1, r.width * dpr | 0); c.height = Math.max(1, h * dpr | 0);
+  c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0); return { w: r.width, h };
+}
+let SW = 0, SH = 0, MW = 0, MH = 0, nodeXY = [], chipRects = [];
+function layout() {
+  app.classList.toggle("portrait", innerHeight > innerWidth * 1.05);
+  ({ w: SW, h: SH } = fit(cv));
+  const w = mt.getBoundingClientRect().width, rowH = Math.max(13, Math.min(17, w / 24)), hh = 54 + n * rowH + 18;
+  mt.style.height = hh + "px"; ({ w: MW, h: MH } = fit(mt, hh));
+  drawAll();
+}
+
+// ---------- 相似之網 ----------
+function drawNet() {
+  const { adj, E, comp, nc } = graph(th);
+  $("cap").innerHTML = `相似度 ≥ <b>${th.toFixed(2)}</b> 就連線；線越粗越像。點兩個節點，程式用 BFS 找一條相似之路。`;
+  $("tag").textContent = "顏色＝類別（棋、牌、球、兒童、單人、博弈、競技）";
+  const top = $("cap").offsetHeight + 16, pad = Math.min(60, SW * .12);
+  nodeXY = pos.map(p => [pad + p[0] * (SW - 2 * pad), top + 10 + p[1] * (SH - top - 44)]);
+  let path = null;
+  if (sel.length === 2) path = bfsPath(adj, sel[0], sel[1]);
+  const onPath = new Set(); if (path) for (let i = 0; i + 1 < path.length; i++) onPath.add(Math.min(path[i], path[i + 1]) + "-" + Math.max(path[i], path[i + 1]));
+  for (let i = 0; i < n; i++) for (let k = i + 1; k < n; k++) {
+    if (J[i][k] < th - 1e-9) continue;
+    const hot = onPath.has(i + "-" + k), touch = sel.length === 1 && (sel[0] === i || sel[0] === k);
+    g.strokeStyle = hot ? C.amber : C.moss; g.globalAlpha = hot ? 1 : touch ? .9 : sel.length ? .18 : .45;
+    g.lineWidth = hot ? 3.5 : .6 + 2.6 * (J[i][k] - th) / Math.max(.05, 1 - th);
+    g.beginPath(); g.moveTo(nodeXY[i][0], nodeXY[i][1]); g.lineTo(nodeXY[k][0], nodeXY[k][1]); g.stroke();
+  }
+  g.globalAlpha = 1;
+  const r = Math.max(6, Math.min(10, SW / 60)), fs = Math.max(10.5, Math.min(13, SW / 42));
+  G.forEach((it, i) => {
+    const [x, y] = nodeXY[i], s = sel.includes(i), dim = sel.length === 1 && !s && J[sel[0]][i] < th - 1e-9;
+    g.globalAlpha = dim ? .35 : 1;
+    g.fillStyle = KIND_COL[it.kind]; g.beginPath(); g.arc(x, y, s ? r + 3 : r, 0, 7); g.fill();
+    if (s) { g.strokeStyle = C.txt; g.lineWidth = 2; g.stroke(); }
+    g.font = `${s ? 600 : 400} ${fs}px 'Noto Serif TC',serif`; g.textAlign = "center"; g.textBaseline = "top";
+    g.fillStyle = C.txt; g.fillText(it.zh, x, y + r + 3);
+  });
+  g.globalAlpha = 1;
+  // 側欄
+  $("l1").textContent = "門檻"; $("r1").textContent = th.toFixed(2);
+  $("l2").textContent = "邊數（共 " + (n * (n - 1) / 2) + " 對）"; $("r2").textContent = E;
+  $("l3").textContent = "連通分量"; $("r3").textContent = nc;
+  $("l4").textContent = "全體共有特徵"; $("r4").textContent = commonAll;
+  let info;
+  if (sel.length === 0) {
+    const sizes = {}; comp.forEach(c => sizes[c] = (sizes[c] || 0) + 1);
+    const alone = G.filter((_, i) => sizes[comp[i]] === 1).map(x => x.zh);
+    info = `門檻 ${th.toFixed(2)}：${E} 條邊，網分成 <b>${nc}</b> 塊` + (alone.length ? `；落單的：${alone.join("、")}` : "；全部連成一塊") + `。全部 16 種都具備的特徵：<b>${commonAll}</b> 項。把門檻往下拉，網會靠「一對對相似」連起來，而不是靠一個共同點。`;
+  } else if (sel.length === 1) {
+    const i = sel[0], it = G[i];
+    const nb = G.map((x, k) => [k, J[i][k]]).filter(([k]) => k !== i).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    info = `<b>${it.zh}</b>（${it.kind}）具備：${F.filter((_, j) => it.f[j]).map(f => f.zh).join("、") || "（無）"}。<br>最像它的：${nb.map(([k, v]) => `${G[k].zh} ${v.toFixed(2)}`).join("、")}。再點一個節點看兩者之間的路。`;
+  } else {
+    const [a, b] = sel, A = G[a], B = G[b];
+    const both = F.filter((_, j) => A.f[j] && B.f[j]).map(f => f.zh), onlyA = F.filter((_, j) => A.f[j] && !B.f[j]).map(f => f.zh), onlyB = F.filter((_, j) => !A.f[j] && B.f[j]).map(f => f.zh);
+    info = `<b>${A.zh}</b> 與 <b>${B.zh}</b>：J ＝ ${both.length}／${both.length + onlyA.length + onlyB.length} ＝ <b>${J[a][b].toFixed(3)}</b><br>共有：${both.join("、") || "（無）"}<br>只有${A.zh}：${onlyA.join("、") || "（無）"}；只有${B.zh}：${onlyB.join("、") || "（無）"}<br>`
+      + (path ? (path.length === 2 ? "兩者直接相連。" : `兩者沒有直接相連，但經由 ${path.length - 2} 個中間成員連得到：${path.map(k => G[k].zh).join(" → ")}（每一步的相似度都 ≥ ${th.toFixed(2)}）。這就是 §67 的間接親緣。`) : `在門檻 ${th.toFixed(2)} 下，兩者不在同一塊，找不到相似之路。試著降低門檻。`);
+  }
+  $("infoT").textContent = "說明"; $("info").innerHTML = info;
+}
+
+// ---------- 下定義 ----------
+const cover = (f, S, mode) => { const a = [...S]; if (!a.length) return mode === "and"; return mode === "and" ? a.every(j => f[j]) : a.some(j => f[j]); };
+// 列舉全部 2^m − 1 組非空特徵：以「且」能涵蓋全部的組數、單一定義最多涵蓋幾種；以「或」最少要幾項才能全收
+const ENUM = (() => {
+  let coverAll = 0, best = 0, bestSets = [], orMin = Infinity, orSets = [];
+  for (let mask = 1; mask < (1 << m); mask++) {
+    const S = []; for (let j = 0; j < m; j++) if (mask >> j & 1) S.push(j);
+    const cAnd = G.filter(gm => S.every(j => gm.f[j])).length;
+    if (cAnd === n) coverAll++;
+    if (cAnd > best) { best = cAnd; bestSets = [S]; } else if (cAnd === best) bestSets.push(S);
+    const cOr = G.filter(gm => S.some(j => gm.f[j])).length;
+    if (cOr === n) { if (S.length < orMin) { orMin = S.length; orSets = [S]; } else if (S.length === orMin) orSets.push(S); }
+  }
+  return { total: (1 << m) - 1, coverAll, best, bestSets, orMin, orSets };
+})();
+function drawDef() {
+  $("cap").innerHTML = `定義：${defSet.size ? [...defSet].map(j => F[j].zh).join(op === "and" ? " 且 " : " 或 ") : "（還沒勾任何特徵）"}`;
+  $("tag").textContent = "琥珀＝符合定義　虛線＝被漏掉　鏽紅＝多收的非遊戲";
+  const showNon = $("con").checked;
+  const items = G.map(x => ({ zh: x.zh, f: x.f, game: true })).concat(showNon ? NON.map(x => ({ zh: x.zh, f: x.f, game: false })) : []);
+  const top = $("cap").offsetHeight + 16, cols = SW < 420 ? 3 : 4, cw = (SW - 16) / cols;
+  const rowsG = Math.ceil(n / cols), rowsN = showNon ? Math.ceil(NON.length / cols) : 0;
+  const ch = Math.min(44, (SH - top - 40 - (showNon ? 26 : 0)) / (rowsG + rowsN));
+  chipRects = [];
+  let inG = 0, outG = [], inN = [];
+  const fs = Math.max(11, Math.min(14, cw / 7.5));
+  items.forEach((it, idx) => {
+    const ok = cover(it.f, defSet, op);
+    let i = idx, y0 = top;
+    if (!it.game) { i = idx - n; y0 = top + rowsG * ch + 26; }
+    const x = 8 + (i % cols) * cw, y = y0 + Math.floor(i / cols) * ch;
+    if (it.game) { ok ? inG++ : outG.push(it.zh); } else if (ok) inN.push(it.zh);
+    g.beginPath(); g.roundRect ? g.roundRect(x + 3, y + 3, cw - 6, ch - 6, 7) : g.rect(x + 3, y + 3, cw - 6, ch - 6);
+    if (it.game) {
+      g.fillStyle = ok ? "rgba(227,154,78,.16)" : "rgba(255,255,255,.02)"; g.fill();
+      g.setLineDash(ok ? [] : [4, 4]); g.strokeStyle = ok ? C.amber : C.sub; g.lineWidth = ok ? 1.6 : 1; g.stroke(); g.setLineDash([]);
+      g.fillStyle = ok ? C.txt : C.sub;
+    } else {
+      g.fillStyle = ok ? "rgba(201,100,74,.18)" : "rgba(255,255,255,.015)"; g.fill();
+      g.strokeStyle = ok ? C.rust : "rgba(156,151,139,.35)"; g.lineWidth = ok ? 1.6 : 1; g.stroke();
+      g.fillStyle = ok ? C.rust : C.sub;
+    }
+    g.font = `${ok ? 600 : 400} ${fs}px 'Noto Serif TC',serif`; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(it.zh, x + cw / 2, y + ch / 2);
+  });
+  if (showNon) { g.font = "12px 'Noto Serif TC',serif"; g.fillStyle = C.sub; g.textAlign = "left"; g.textBaseline = "alphabetic"; g.fillText("非遊戲對照組（本頁自訂）", 10, top + rowsG * ch + 18); }
+  $("l1").textContent = "涵蓋的遊戲"; $("r1").textContent = inG + "／" + n;
+  $("l2").textContent = "漏掉"; $("r2").textContent = n - inG;
+  $("l3").textContent = "多收的非遊戲"; $("r3").textContent = showNon ? inN.length : "—";
+  $("l4").textContent = "全體共有特徵"; $("r4").textContent = commonAll;
+  const name = S => S.map(j => F[j].zh).join("＋");
+  let t = `漏掉：${outG.length ? outG.join("、") : "（沒有）"}。` + (showNon ? `多收：${inN.length ? inN.join("、") : "（沒有）"}。` : "");
+  t += `<br><br><b>程式列舉全部 ${ENUM.total} 組非空特徵組合：</b><br>・以「全部具備」當定義，能涵蓋全部 ${n} 種的：<b>${ENUM.coverAll}</b> 組。最多只能涵蓋 ${ENUM.best} 種（${ENUM.bestSets.slice(0, 3).map(name).join("；")}）。`;
+  t += `<br>・以「至少一項」當定義，最少 <b>${ENUM.orMin}</b> 項就能全收（例如 ${ENUM.orSets.slice(0, 3).map(name).join("；")}），` + (showNon ? `但同時會收進對照組的 ${NON.filter(x => cover(x.f, new Set(ENUM.orSets[0]), "or")).length}／${NON.length} 項。` : "") + `§67：把聯集說成共同點，只是在玩弄字眼。`;
+  $("infoT").textContent = "結果"; $("info").innerHTML = t;
+  $("defHint").textContent = op === "and" ? "「且」：要全部具備才算遊戲。勾越多，漏越多；勾越少，收得越雜。" : "「或」：具備其中一項就算。很容易全收，但什麼都收得進來。";
+  [...$("feats").children].forEach(b => b.classList.toggle("on", defSet.has(+b.dataset.j)));
+}
+
+// ---------- 矩陣 ----------
+function drawMat() {
+  if (!MW) return;
+  mx.clearRect(0, 0, MW, MH);
+  const L = Math.min(96, MW * .3), top = 54, cw = (MW - L - 4) / m, rh = (MH - top - 18) / n;
+  mx.font = `${Math.max(9.5, Math.min(11, cw * .45))}px 'Noto Serif TC',serif`;
+  F.forEach((f, j) => {
+    const x = L + j * cw + cw / 2;
+    const hl = mode === "def" && defSet.has(j);
+    mx.save(); mx.translate(x, top - 4); mx.rotate(-Math.PI / 3); mx.fillStyle = hl ? C.amber : C.sub; mx.textAlign = "left"; mx.textBaseline = "middle"; mx.fillText(f.zh, 0, 0); mx.restore();
+    if (hl) { mx.fillStyle = "rgba(227,154,78,.08)"; mx.fillRect(L + j * cw, top, cw, n * rh); }
+  });
+  G.forEach((it, i) => {
+    const y = top + i * rh, s = sel.includes(i);
+    mx.fillStyle = s ? C.amber : C.sub; mx.textAlign = "right"; mx.textBaseline = "middle"; mx.fillText(it.zh, L - 5, y + rh / 2);
+    it.f.forEach((v, j) => {
+      mx.fillStyle = v ? (s ? C.amber : "rgba(143,181,115,.85)") : "rgba(255,255,255,.04)";
+      mx.fillRect(L + j * cw + 1, y + 1, cw - 2, rh - 2);
+    });
+  });
+  mx.font = "10px 'JetBrains Mono',monospace"; mx.textAlign = "center"; mx.textBaseline = "alphabetic";
+  colCount.forEach((c, j) => { mx.fillStyle = c === n ? C.amber : C.sub; mx.fillText(c, L + j * cw + cw / 2, top + n * rh + 13); });
+}
+function drawAll() {
+  if (!SW) return;
+  g.clearRect(0, 0, SW, SH);
+  mode === "net" ? drawNet() : drawDef();
+  drawMat();
+}
+
+// ---------- 互動 ----------
+cv.addEventListener("click", e => {
+  if (mode !== "net") return;
+  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  let best = -1, bd = 26;
+  nodeXY.forEach(([px, py], i) => { const d = Math.hypot(px - x, py - y - 6); if (d < bd) { bd = d; best = i; } });
+  if (best < 0) { sel = []; }
+  else if (sel.includes(best)) sel = sel.filter(i => i !== best);
+  else sel = sel.length >= 2 ? [best] : sel.concat(best);
+  drawAll();
+});
+$("feats").innerHTML = F.map((f, j) => `<button class="ft" data-j="${j}">${f.zh}</button>`).join("");
+$("feats").addEventListener("click", e => { const b = e.target.closest("[data-j]"); if (!b) return; const j = +b.dataset.j; defSet.has(j) ? defSet.delete(j) : defSet.add(j); drawAll(); });
+$("th").oninput = e => { th = +e.target.value; $("oTh").textContent = th.toFixed(2); drawAll(); };
+$("op").onchange = e => { op = e.target.value; drawAll(); };
+$("con").onchange = drawAll;
+$("mode").onchange = e => {
+  mode = e.target.value;
+  const def = mode === "def";
+  $("defSec").hidden = !def; $("lOp").hidden = !def; $("lCon").hidden = !def; $("lTh").hidden = def;
+  layout();
+};
+$("bClr").onclick = () => { sel = []; if (mode === "def") defSet.clear(); drawAll(); };
+new ResizeObserver(layout).observe(document.body);
+})();
+</script>
+</body>
+</html>

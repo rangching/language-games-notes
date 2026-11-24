@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>規則有幾種延續？</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.92);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--blue:#6FA3D8;--moss:#8FB573;--wis:#A58BD0;--cyan:#56B6C2;--rust:#C9644A}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,.9fr) minmax(0,1.1fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+#read{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:6px;display:flex;justify-content:space-between;gap:6px;align-items:center;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+td{overflow-wrap:anywhere}
+col.c1{width:52%}col.c2{width:14%}col.c3{width:34%}
+td,th{padding:3px 4px;text-align:left;border-bottom:1px solid rgba(46,51,61,.6);vertical-align:middle}
+th{font-weight:400;color:var(--sub);font-size:11px}
+td.num{font-family:"JetBrains Mono",monospace;text-align:right;word-break:break-all}
+tr.rule{cursor:pointer}
+tr.rule.hl td{background:rgba(227,154,78,.10)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.bar{height:8px;border-radius:4px;background:var(--blue);display:inline-block;vertical-align:middle}
+.note{font-size:12px;color:var(--sub);line-height:1.7}
+.note b{color:var(--txt);font-weight:600}
+.verdict{font-size:13px;line-height:1.7;margin-top:6px}
+.ok{color:var(--moss)}.bad{color:var(--rust)}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+label.grow{flex:1 1 150px;min-width:130px}
+input[type=range]{flex:1;accent-color:var(--amber);height:28px;min-width:60px}
+input[type=text]{background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:inherit;font-size:13px;min-height:32px;width:150px;font-family:"JetBrains Mono",monospace}
+input[type=checkbox]{accent-color:var(--amber);width:18px;height:18px}
+output{font-family:"JetBrains Mono",monospace;color:var(--txt);min-width:14px}
+select,button{background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer}
+button:active{background:#262A31}
+button.on{border-color:var(--amber);color:var(--amber)}
+.cap{position:absolute;left:10px;top:8px;right:10px;font-size:12px;color:var(--sub);pointer-events:none;line-height:1.6}
+.cap b{color:var(--amber);font-family:"JetBrains Mono",monospace;font-weight:600}
+.tag{position:absolute;right:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none}
+#app.portrait header span{display:none}
+#app.portrait .cap{font-size:11px}
+#app.portrait .tag{display:none}
+#app.portrait #read b{font-size:13px}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 7px;font-size:12px}
+#app.portrait input[type=text]{width:120px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>規則有幾種延續？</h1><span>有限的例子，無限多條都「符合」的規則（§185、§201）；對與錯在做法裡（§202、§241）</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="數列圖：已知項為琥珀色圓點，每條規則一條折線，在已知項重合、之後岔開"></canvas>
+    <div class="cap" id="cap"></div><span class="tag">點右側表格的一列＝突顯那條規則</span></div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small>已知項數</small><b id="rN">—</b></div>
+      <div><small>畫出的規則</small><b id="rK">—</b></div>
+      <div><small>可構造的規則</small><b style="color:var(--amber)">無限多</b></div>
+      <div><small>下一項有幾種</small><b id="rD">—</b></div>
+    </div>
+    <div class="sec"><h3><span>每條規則：已知項全部吻合？接下來寫什麼？</span></h3>
+      <table><colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup><thead><tr><th>規則</th><th style="text-align:right">吻合</th><th style="text-align:right" id="thNext">接下來</th></tr></thead><tbody id="tb"></tbody></table>
+    </div>
+    <div class="sec" id="comm"><h3><span>社群的做法</span><span><button id="bComm">開啟</button></span></h3>
+      <div id="commBody" class="note">按「開啟」：一群受過同樣訓練的人各自寫下接下來幾項（偶爾手滑），程式逐條比對每條規則和大家的延續是否相符。</div>
+    </div>
+    <div class="sec"><div class="note" id="moral"></div></div>
+  </div>
+  <div id="ctrl" class="box">
+    <label>數列 <select id="preset">
+      <option value="p2">加 2：2, 4, 6, 8</option>
+      <option value="sq">平方：1, 4, 9, 16</option>
+      <option value="dbl">倍增：1, 2, 4, 8, 16</option>
+      <option value="fib">費氏：1, 1, 2, 3, 5, 8</option>
+      <option value="cus">自己輸入…</option>
+    </select></label>
+    <input id="cus" type="text" value="3, 5, 7" aria-label="自訂數列，以逗號分隔" style="display:none">
+    <label class="grow">已知項 <input id="nK" type="range" min="2" max="8" step="1" value="4"><output id="oK">4</output></label>
+    <button id="bAdd">再造一條規則</button>
+    <button id="bLog" class="on">壓縮縱軸</button>
+    <button id="bAbsorb" title="把社群寫出的延續也當成已知項">把社群的延續併入已知項</button>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const C = { amber: "#E39A4E", clay: "#B9825A", blue: "#6FA3D8", moss: "#8FB573", wis: "#A58BD0", cyan: "#56B6C2", rust: "#C9644A", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D", grid: "#22262E" };
+const COLS = [C.blue, C.rust, C.wis, C.clay, C.cyan, "#D7C27A", "#C98AB0", "#7FC7A0", "#E0B48C", "#9AA9E6", "#B7C46A", "#E28C8C"];
+const H = 4;                                   // 看已知項之後的幾項
+const app = $("app"), cv = $("cv"), ctx = cv.getContext("2d");
+
+// ---------- 小工具 ----------
+function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const fmt = v => { if (!isFinite(v)) return "—"; const r = Math.round(v); if (Math.abs(v - r) < 1e-9) return Math.abs(r) >= 1e7 ? r.toExponential(2) : String(r); return (Math.round(v * 100) / 100).toString(); };
+const eq = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+
+// ---------- 數列與「老師教的做法」 ----------
+const PRESETS = {
+  p2:  { seq: [2, 4, 6, 8, 10, 12, 14, 16], taught: "加 2", T: (x, a) => 2 * x },
+  sq:  { seq: [1, 4, 9, 16, 25, 36, 49, 64], taught: "平方", T: (x, a) => x * x },
+  dbl: { seq: [1, 2, 4, 8, 16, 32, 64, 128], taught: "每次乘 2", T: (x, a) => Math.pow(2, x - 1) },
+  fib: { seq: [1, 1, 2, 3, 5, 8, 13, 21], taught: "前兩項相加", rec: true }
+};
+let preset = "p2", nKnown = 4, known = [], extraCs = [], absorbed = null;
+
+// 最低次多項式：用前向差分表延伸（整數資料時結果仍為整數，無浮點誤差）
+function polyExtend(ys, m) {
+  const rows = [ys.slice()];
+  while (rows[rows.length - 1].length > 1) { const r = rows[rows.length - 1]; rows.push(r.slice(1).map((v, i) => v - r[i])); }
+  const out = ys.slice();
+  for (let s = 0; s < m; s++) {
+    rows[rows.length - 1].push(rows[rows.length - 1][rows[rows.length - 1].length - 1]);   // 最高階差分保持不變
+    for (let d = rows.length - 2; d >= 0; d--) { const r = rows[d], below = rows[d + 1]; r.push(r[r.length - 1] + below[below.length - 1]); }
+    out.push(rows[0][rows[0].length - 1]);
+  }
+  return out;
+}
+// 「老師教的做法」在 x = 1..L 的值
+function taughtSeq(L) {
+  if (preset === "cus") return polyExtend(known, L - known.length);
+  const P = PRESETS[preset];
+  if (P.rec) { const a = [1, 1]; while (a.length < L) a.push(a[a.length - 1] + a[a.length - 2]); return a.slice(0, L); }
+  return Array.from({ length: L }, (_, i) => P.T(i + 1));
+}
+const taughtName = () => preset === "cus" ? "最低次多項式（假設老師教的是這個）" : `老師教的：${PRESETS[preset].taught}`;
+// Π(x − i), i = 1..n：在每個已知點都是 0
+const prodZero = (x, n) => { let p = 1; for (let i = 1; i <= n; i++) p *= (x - i); return p; };
+
+// ---------- 構造規則：每條都是 x = 1..n+H 的值 ----------
+let rules = [];
+function build() {
+  const n = known.length, L = n + H, T = taughtSeq(L);
+  rules = [];
+  rules.push({ name: taughtName(), short: "教的做法", v: T, taught: true });
+  const P = polyExtend(known, H);
+  if (P.some((v, i) => !eq(v, T[i]))) rules.push({ name: "最低次多項式（差分延伸）", short: "多項式", v: P });
+  [1, -1].concat(extraCs).forEach(c => {
+    rules.push({ name: `擾動：教的做法 ${c > 0 ? "+" : "−"} ${fmt(Math.abs(c))}·(x−1)…(x−${n})`, short: `擾動 c=${fmt(c)}`, v: T.map((t, i) => t + c * prodZero(i + 1, n)) });
+  });
+  // §185 型：過了已知範圍，每一步的增量變成兩倍
+  const pw = known.slice(); for (let x = n + 1; x <= L; x++) pw.push(pw[x - 2] + 2 * (T[x - 1] - T[x - 2]));
+  rules.push({ name: "§185 型：過了練習範圍，每步增量加倍", short: "§185 型", v: pw });
+  const cyc = known.slice(); for (let x = n + 1; x <= L; x++) cyc.push(known[(x - n - 1) % n]);
+  rules.push({ name: "循環：把已知的幾項從頭再寫一遍", short: "循環", v: cyc });
+  const qu = known.slice(); for (let x = n + 1; x <= L; x++) qu.push(5);
+  rules.push({ name: "quus 式：超出練習範圍就一律寫 5", short: "quus 式", v: qu });
+  rules.forEach((r, i) => { r.col = r.taught ? C.amber : COLS[(i - 1) % COLS.length]; r.fit = known.every((y, j) => eq(r.v[j], y)); });
+}
+
+// ---------- 社群模擬 ----------
+let commOn = false, commSeed = 7, members = [], student = -1, hl = -1;
+const N_MEM = 30, SLIP = 0.04;
+function simulateCommunity() {
+  const rnd = mulberry(commSeed), n = known.length, T = rules[0].v;
+  members = [];
+  for (let m = 0; m < N_MEM; m++) {
+    const out = [];
+    for (let k = 0; k < H; k++) {
+      let v = T[n + k];
+      if (rnd() < SLIP) v += (rnd() < 0.5 ? -1 : 1) * (1 + Math.floor(rnd() * 3));   // 偶爾手滑寫錯一項
+      out.push(v);
+    }
+    members.push(out);
+  }
+}
+function communityMode() {           // 每一項大家最常寫的數
+  const n = known.length;
+  return Array.from({ length: H }, (_, k) => {
+    const cnt = new Map(); members.forEach(o => cnt.set(o[k], (cnt.get(o[k]) || 0) + 1));
+    let best = null, bc = -1; cnt.forEach((c, v) => { if (c > bc) { bc = c; best = v; } });
+    return { v: best, c: bc };
+  });
+}
+
+// ---------- 版面 ----------
+let SW = 0, SH = 0;
+function layout() {
+  app.classList.toggle("portrait", innerHeight > innerWidth * 1.05);
+  const r = cv.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  SW = r.width; SH = r.height; cv.width = Math.max(1, SW * dpr | 0); cv.height = Math.max(1, SH * dpr | 0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawAll();
+}
+let logScale = true;
+const tf = v => logScale ? Math.asinh(v / 4) : v;   // asinh：小數字近似線性，大數字被壓縮
+
+function drawChart() {
+  if (!SW) return;
+  ctx.clearRect(0, 0, SW, SH);
+  const n = known.length, L = n + H;
+  const capH = $("cap").offsetHeight;
+  const pad = { l: 46, r: 14, t: capH + 18, b: 30 };
+  const W = SW - pad.l - pad.r, Hh = SH - pad.t - pad.b;
+  if (W < 40 || Hh < 40) return;
+  let lo = Infinity, hi = -Infinity;
+  rules.forEach(r => r.v.forEach(v => { const t = tf(v); if (t < lo) lo = t; if (t > hi) hi = t; }));
+  if (commOn) members.forEach(o => o.forEach(v => { const t = tf(v); lo = Math.min(lo, t); hi = Math.max(hi, t); }));
+  if (hi - lo < 1e-6) { hi += 1; lo -= 1; }
+  const m = (hi - lo) * 0.06; lo -= m; hi += m;
+  const X = x => pad.l + (x - 0.5) / L * W, Y = v => pad.t + (hi - tf(v)) / (hi - lo) * Hh;
+  // 已知區域與未知區域
+  ctx.fillStyle = "rgba(227,154,78,.06)"; ctx.fillRect(X(0.5), pad.t, X(n + 0.5) - X(0.5), Hh);
+  ctx.strokeStyle = "rgba(227,154,78,.5)"; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(X(n + 0.5), pad.t); ctx.lineTo(X(n + 0.5), pad.t + Hh); ctx.stroke(); ctx.setLineDash([]);
+  ctx.font = "11px 'Noto Serif TC',serif"; ctx.fillStyle = C.sub; ctx.textAlign = "left";
+  ctx.fillText("練習過的範圍", X(0.5) + 4, pad.t + 12); ctx.fillText("沒練習過", X(n + 0.5) + 4, pad.t + 12);
+  // 座標軸
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.font = "10px 'JetBrains Mono',monospace";
+  for (let x = 1; x <= L; x++) { ctx.beginPath(); ctx.moveTo(X(x), pad.t); ctx.lineTo(X(x), pad.t + Hh); ctx.stroke(); ctx.fillStyle = C.sub; ctx.textAlign = "center"; ctx.fillText(x, X(x), pad.t + Hh + 14); }
+  ctx.fillText("第幾項", pad.l + W / 2, pad.t + Hh + 26);
+  const ticks = niceTicks();
+  ctx.textAlign = "right";
+  ticks.forEach(v => { const y = Y(v); if (y < pad.t - 2 || y > pad.t + Hh + 2) return; ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + W, y); ctx.stroke(); ctx.fillStyle = C.sub; ctx.fillText(fmt(v), pad.l - 4, y + 3); });
+  function niceTicks() {
+    const out = [];
+    if (!logScale) { const a = lo, b = hi, step = Math.pow(10, Math.floor(Math.log10((b - a) / 4))); const s = [1, 2, 5, 10].map(k => k * step).find(k => (b - a) / k <= 6) || step * 10; for (let v = Math.ceil(a / s) * s; v <= b; v += s) out.push(v); return out; }
+    [0, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7].forEach(v => { out.push(v); if (v) out.push(-v); }); return out;
+  }
+  // 社群成員的點
+  if (commOn) {
+    members.forEach((o, mi) => o.forEach((v, k) => {
+      const jx = ((mi * 37) % 11 - 5) * 1.3;
+      ctx.fillStyle = "rgba(185,130,90,.55)"; ctx.beginPath(); ctx.arc(X(n + 1 + k) + jx, Y(v), 2.2, 0, 7); ctx.fill();
+    }));
+  }
+  // 規則折線
+  const order = rules.map((_, i) => i).sort((a, b) => (a === hl) - (b === hl) || (a === 0) - (b === 0));
+  order.forEach(i => {
+    const r = rules[i], on = hl < 0 || hl === i;
+    ctx.strokeStyle = r.col; ctx.globalAlpha = on ? 1 : 0.18; ctx.lineWidth = (hl === i ? 3 : r.taught ? 2.4 : 1.6);
+    ctx.beginPath(); r.v.forEach((v, j) => { const x = X(j + 1), y = Y(v); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+    for (let j = n; j < L; j++) { ctx.fillStyle = r.col; ctx.beginPath(); ctx.arc(X(j + 1), Y(r.v[j]), on ? 3.2 : 2, 0, 7); ctx.fill(); }
+    if (on) { ctx.fillStyle = r.col; ctx.textAlign = "left"; ctx.font = "10px 'JetBrains Mono',monospace"; const yy = Y(r.v[n]); ctx.fillText(fmt(r.v[n]), X(n + 1) + 6, yy - 4); }
+  });
+  ctx.globalAlpha = 1;
+  // 已知項
+  known.forEach((y, j) => { ctx.fillStyle = C.amber; ctx.beginPath(); ctx.arc(X(j + 1), Y(y), 5.5, 0, 7); ctx.fill(); ctx.strokeStyle = "#0E0F12"; ctx.lineWidth = 1.5; ctx.stroke(); });
+}
+
+function renderTable() {
+  const n = known.length;
+  $("thNext").textContent = `第 ${n + 1}–${n + H} 項`;
+  const verdicts = commOn ? communityMode() : null;
+  $("tb").innerHTML = rules.map((r, i) => {
+    const nx = r.v.slice(n).map(fmt).join(", ");
+    return `<tr class="rule${hl === i ? " hl" : ""}" data-i="${i}"><td><span class="sw" style="background:${r.col}"></span>${r.name}</td><td class="num ${r.fit ? "ok" : "bad"}">${r.fit ? "✓ " + n + "/" + n : "✗"}</td><td class="num">${nx}</td></tr>`;
+  }).join("");
+  const firstNext = new Set(rules.map(r => fmt(r.v[n])));
+  $("rN").textContent = n; $("rK").textContent = rules.length; $("rD").textContent = firstNext.size;
+}
+
+function renderCommunity() {
+  const body = $("commBody");
+  if (!commOn) { body.innerHTML = "按「開啟」：一群受過同樣訓練的人各自寫下接下來幾項（偶爾手滑），程式逐條比對每條規則和大家的延續是否相符。"; $("bComm").textContent = "開啟"; $("bComm").classList.remove("on"); return; }
+  $("bComm").textContent = "關閉"; $("bComm").classList.add("on");
+  const n = known.length, mode = communityMode();
+  const matchCount = rules.map(r => members.filter(o => o.every((v, k) => eq(v, r.v[n + k]))).length);
+  const agreeMode = rules.map(r => mode.every((m, k) => eq(m.v, r.v[n + k])));
+  const rows = rules.map((r, i) => `<tr class="rule${hl === i ? " hl" : ""}" data-i="${i}"><td><span class="sw" style="background:${r.col}"></span>${r.short}</td><td class="num"><span class="bar" style="width:${Math.round(60 * matchCount[i] / N_MEM)}px;background:${r.col}"></span> ${matchCount[i]}/${N_MEM}</td><td class="num ${agreeMode[i] ? "ok" : "bad"}">${agreeMode[i] ? "相符" : "不符"}</td></tr>`).join("");
+  const slips = members.filter(o => !o.every((v, k) => eq(v, rules[0].v[n + k]))).length;
+  let sv = "";
+  if (student >= 0) {
+    const r = rules[student], k = mode.findIndex((m, k) => !eq(m.v, r.v[n + k]));
+    sv = k < 0 ? `<div class="verdict ok">學生照「${r.short}」寫：${r.v.slice(n).map(fmt).join("、")}。和大家的做法一致，沒有人會糾正他。</div>`
+      : `<div class="verdict bad">學生照「${r.short}」寫。第 ${n + k + 1} 項他寫 ${fmt(r.v[n + k])}，大家寫 ${fmt(mode[k].v)}（${mode[k].c}/${N_MEM} 人）。老師會說：「看看你在做什麼！」（§185）</div>`;
+  }
+  body.innerHTML = `<p class="note">${N_MEM} 個受過同樣訓練的人各寫第 ${n + 1}–${n + H} 項，其中 <b>${slips}</b> 人某一項手滑寫錯（個人的失誤，會被別人糾正）。</p>
+  <table><colgroup><col style="width:34%"><col style="width:40%"><col style="width:26%"></colgroup><thead><tr><th>規則</th><th style="text-align:right">和幾個人完全一樣</th><th style="text-align:right">和大家常寫的</th></tr></thead><tbody>${rows}</tbody></table>
+  <label style="margin-top:6px">當學生的是 <select id="stu"><option value="-1">（選一條規則）</option>${rules.map((r, i) => `<option value="${i}"${i === student ? " selected" : ""}>${r.short}</option>`).join("")}</select></label>
+  <button id="bResamp" style="margin-top:6px">重新抽一群人</button>${sv}`;
+  $("stu").onchange = e => { student = +e.target.value; hl = student; drawAll(); };
+  $("bResamp").onclick = () => { commSeed++; simulateCommunity(); drawAll(); };
+}
+
+function renderCap() {
+  const n = known.length, fits = rules.filter(r => r.fit).length, firstNext = new Set(rules.map(r => fmt(r.v[n])));
+  $("cap").innerHTML = `已知：<span class="mono">${known.map(fmt).join(", ")}</span>${absorbed ? "（含併入的社群延續）" : ""}<br>`
+    + `<b>${fits}</b> 條規則在這 ${n} 項全部吻合，第 ${n + 1} 項卻有 <b>${firstNext.size}</b> 種寫法`;
+  $("moral").innerHTML = commOn
+    ? `<b>這不是投票決定真理。</b>真假是人們說出來的；人們一致的是語言、是生活形式，不是意見（§241）。這裡模擬的是：「對」「錯」「你寫錯了」這些話，是在一群人受同樣訓練、一再一起做、互相糾正的做法裡使用的（§199、§202）。試試「把社群的延續併入已知項」：多了 ${H} 個點之後，還是能造出無限多條在這些點全部吻合、之後岔開的規則；決定對錯的從來不是「更多資料」，而是做法本身（§201 後半）。`
+    : `<b>任何做法都能被「解釋」成符合規則嗎？</b>（§198、§201）每多一個在已知點為 0 的項，就多一條規則；「再造一條規則」可以一直按下去。可是如果什麼都算符合，也就什麼都算違反，「符合」這個詞就空了。打開「社群的做法」，看對錯實際上在哪裡被分出來。`;
+}
+
+function drawAll() { renderCap(); renderTable(); renderCommunity(); drawChart(); }
+
+// ---------- 重新計算 ----------
+function setKnown() {
+  if (preset === "cus") {
+    const nums = $("cus").value.split(/[,，\s、]+/).map(s => s.trim()).filter(Boolean).map(Number).filter(v => isFinite(v));
+    known = nums.slice(0, 8); if (known.length < 2) known = [3, 5];
+    nKnown = known.length; $("nK").value = nKnown; $("oK").textContent = nKnown;
+  } else {
+    known = PRESETS[preset].seq.slice(0, nKnown);
+  }
+  absorbed = null;
+}
+function rebuild() { build(); if (commOn) simulateCommunity(); if (student >= rules.length) student = -1; if (hl >= rules.length) hl = -1; layout(); }
+
+// ---------- 互動 ----------
+$("preset").onchange = e => {
+  preset = e.target.value; $("cus").style.display = preset === "cus" ? "" : "none";
+  if (preset !== "cus") { nKnown = Math.max(2, Math.min(nKnown, 8)); }
+  extraCs = []; student = -1; hl = -1; setKnown(); rebuild();
+};
+$("cus").onchange = () => { extraCs = []; setKnown(); rebuild(); };
+$("nK").oninput = e => {
+  nKnown = +e.target.value; $("oK").textContent = nKnown;
+  if (preset === "cus") { const base = polyExtend(known.length ? known : [3, 5], 8); $("cus").value = base.slice(0, nKnown).map(fmt).join(", "); }
+  setKnown(); rebuild();
+};
+$("bAdd").onclick = () => {
+  const pool = [2, -2, 0.5, -0.5, 3, -3, 1.5, -1.5, 4, -4, 0.25, -0.25, 5, -5, 6, -6];
+  const c = pool.find(v => !extraCs.includes(v)); if (c === undefined) return;
+  extraCs.push(c); hl = -1; rebuild(); hl = rules.length - 4; drawAll();
+};
+$("bLog").onclick = () => { logScale = !logScale; $("bLog").classList.toggle("on", logScale); drawChart(); };
+$("bComm").onclick = () => { commOn = !commOn; if (commOn) simulateCommunity(); else student = -1; layout(); };
+$("bAbsorb").onclick = () => {
+  if (!commOn) { commOn = true; simulateCommunity(); }
+  const n = known.length, mode = communityMode();
+  if (n + H > 12) { $("moral").innerHTML += "<br>（已知項最多 12 項，這裡不再併入。）"; return; }
+  known = known.concat(mode.map(m => m.v));
+  absorbed = true; extraCs = []; student = -1; hl = -1;
+  $("oK").textContent = known.length;
+  build(); simulateCommunity(); layout();
+};
+function pick(e) { const tr = e.target.closest("tr.rule"); if (!tr || e.target.closest("select,button")) return; const i = +tr.dataset.i; hl = hl === i ? -1 : i; drawAll(); }
+$("tb").addEventListener("click", pick);
+$("commBody").addEventListener("click", pick);
+
+setKnown(); build();
+new ResizeObserver(layout).observe(document.body);
+})();
+</script>
+</body>
+</html>

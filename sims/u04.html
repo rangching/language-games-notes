@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>指物猜謎</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0F12;--panel:rgba(22,24,29,.93);--line:#2E333D;--txt:#EDE6D6;--sub:#9C978B;--amber:#E39A4E;--clay:#B9825A;--blue:#6FA3D8;--moss:#8FB573;--rust:#C9644A;--wis:#A58BD0}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden;color:var(--txt);font-family:"Noto Serif TC","PingFang TC",serif;-webkit-tap-highlight-color:transparent;
+  background-color:var(--bg);
+  background-image:linear-gradient(rgba(237,230,214,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(237,230,214,.035) 1px,transparent 1px);
+  background-size:24px 24px}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+#app{position:absolute;inset:0;display:grid;gap:8px;padding:8px;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head" "stage side" "ctrl ctrl"}
+#app.portrait{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1.15fr) auto;grid-template-areas:"head" "stage" "side" "ctrl"}
+header{grid-area:head;display:flex;align-items:baseline;gap:10px;min-width:0}
+header h1{font-size:15px;font-weight:600;white-space:nowrap}
+header span{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-height:0;min-width:0;overflow:hidden}
+#stage{grid-area:stage}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#side{grid-area:side;display:flex;flex-direction:column;overflow-y:auto}
+#read{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;font-size:11px;color:var(--sub);border-bottom:1px solid var(--line)}
+#read div{display:flex;flex-direction:column;min-width:0}
+#read b{font-family:"JetBrains Mono",monospace;font-size:16px;color:var(--txt);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{padding:8px 10px;border-bottom:1px solid var(--line)}
+.sec h3{font-size:12px;font-weight:400;color:var(--sub);margin-bottom:6px}
+.sec p{font-size:12.5px;line-height:1.7;color:var(--txt)}
+.sec p.dim{color:var(--sub)}
+#chart{display:block;width:100%;height:96px}
+#hyps{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:12px;border-radius:6px;padding:2px 7px;border:1px solid rgba(227,154,78,.5);color:var(--amber);background:rgba(227,154,78,.08)}
+.chip.gone{border-color:rgba(156,151,139,.3);color:var(--sub);text-decoration:line-through;opacity:.6}
+.chip.tgt{border-color:var(--moss);color:var(--moss);background:rgba(143,181,115,.12)}
+#guess{display:flex;flex-wrap:wrap;gap:5px}
+#msg{margin-top:6px;font-size:12.5px;line-height:1.7;min-height:1.6em}
+#msg .ok{color:var(--moss)} #msg .no{color:var(--rust)}
+.tsel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.tsel label{font-size:12px}
+.tsel select{flex:1;min-width:0}
+#ctrl{grid-area:ctrl;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 10px}
+label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+select,button{background:#1B1E24;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;min-height:32px;cursor:pointer}
+button:active{background:#262A31}
+button.pri{border-color:rgba(227,154,78,.6);color:var(--amber)}
+button:disabled{opacity:.4;cursor:default}
+input[type=checkbox]{accent-color:var(--amber);width:18px;height:18px}
+.cap{position:absolute;left:10px;top:8px;right:10px;font-size:12.5px;color:var(--sub);pointer-events:none;line-height:1.6}
+.cap b{color:var(--amber);font-weight:600}
+.tag{position:absolute;right:8px;bottom:5px;font-size:10px;color:var(--sub);pointer-events:none}
+#app.portrait header span{display:none}
+#app.portrait #read b{font-size:13px}
+#app.portrait #ctrl{gap:4px 8px;padding:5px 8px}
+#app.portrait #ctrl select,#app.portrait #ctrl button{padding:4px 7px;font-size:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>指物猜謎</h1><span>一指多解（§28）；位置預備好才懂（§30–§31）；意義由後續的用法定下來（§43）</span></header>
+  <div id="stage" class="box"><canvas id="cv" aria-label="用例看板：每一張卡片是一組物件與老師說的話"></canvas>
+    <div class="cap" id="cap"></div><span class="tag" id="tag"></span></div>
+  <div id="side" class="box">
+    <div id="read">
+      <div><small>假設總數</small><b id="rAll">256</b></div>
+      <div><small>還相容的</small><b id="rLeft" style="color:var(--amber)">—</b></div>
+      <div><small>用例數</small><b id="rN">0</b></div>
+      <div><small>上一步刪掉</small><b id="rCut">—</b></div>
+    </div>
+    <div class="sec"><h3>剩餘假設數（每多一個用例；對數刻度）</h3><canvas id="chart" aria-label="剩餘假設數隨用例數下降的折線圖"></canvas></div>
+    <div class="sec" id="guessSec"><h3>你猜「<span id="wd1">波卡</span>」指的是哪一種？</h3>
+      <div id="guess"></div><div id="msg"></div></div>
+    <div class="sec" id="tgtSec" hidden><h3>你心裡想的意思（每個維度：不限，或限定一個值）</h3><div class="tsel" id="tsel"></div>
+      <p class="dim" id="minInfo" style="margin-top:6px"></p></div>
+    <div class="sec"><h3 id="hypTitle">還相容的假設</h3><div id="hyps"></div></div>
+    <div class="sec"><p class="dim" id="explain"></p></div>
+  </div>
+  <div id="ctrl" class="box">
+    <label>模式 <select id="mode"><option value="pc">電腦出題</option><option value="me">你當老師</option></select></label>
+    <label id="lStyle">老師 <select id="style"><option value="smart">會教的（挑最有資訊的用例）</option><option value="rand">隨便舉例</option></select></label>
+    <label><input type="checkbox" id="cat"> 先說類別詞（§29）</label>
+    <button class="pri" id="bNew">新謎題</button>
+    <button id="bNext">下一個用例</button>
+    <button id="bUndo">退一步</button>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const C = { amber: "#E39A4E", clay: "#B9825A", rust: "#C9644A", moss: "#8FB573", blue: "#6FA3D8", txt: "#EDE6D6", sub: "#9C978B", line: "#2E333D" };
+
+// ---------- 模型：4 個維度 × 3 種值；假設＝每維「不限(-1)」或某個值 ----------
+const DIMS = [
+  { zh: "顏色", vals: ["紅", "藍", "綠"] },
+  { zh: "形狀", vals: ["圓", "方", "三角"] },
+  { zh: "數量", vals: ["1 個", "2 個", "3 個"] },
+  { zh: "材質", vals: ["木", "石", "玻璃"] }
+];
+const COLS = ["#D2664C", "#5E92D2", "#7FB062"];
+const ANY = -1;
+const HYPS = [];             // 4^4 = 256
+for (let a = -1; a < 3; a++) for (let b = -1; b < 3; b++) for (let c = -1; c < 3; c++) for (let d = -1; d < 3; d++) HYPS.push([a, b, c, d]);
+const OBJS = [];             // 3^4 = 81
+for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) for (let c = 0; c < 3; c++) for (let d = 0; d < 3; d++) OBJS.push([a, b, c, d]);
+const fits = (h, o) => h.every((v, i) => v === ANY || v === o[i]);
+const hKey = h => h.join(",");
+const hName = h => {
+  const parts = h.map((v, i) => v === ANY ? null : `${DIMS[i].zh}＝${DIMS[i].vals[v]}`).filter(Boolean);
+  if (!parts.length) return "東西（什麼都算）";
+  return parts.join(" 且 ") + (parts.length === 4 ? "（就是這種組合，近似專名）" : "");
+};
+const oName = o => `${DIMS[0].vals[o[0]]}・${DIMS[1].vals[o[1]]}・${DIMS[2].vals[o[2]]}・${DIMS[3].vals[o[3]]}`;
+const WORDS = ["波卡", "吉莫", "塔魯", "咪拉", "諾比", "庫奇"];
+
+// ---------- 狀態 ----------
+let mode = "pc", word = "波卡", target = [ANY, ANY, 1, ANY], ex = [], space = HYPS.slice(), guessed = null;
+function baseSpace() {
+  if (!$("cat").checked) return HYPS.slice();
+  // §29：「這個〈數量〉叫波卡」→ 只留下「只限定該維度」的假設
+  const d = target.findIndex(v => v !== ANY);
+  return HYPS.filter(h => h.every((v, i) => i === d ? v !== ANY : v === ANY));
+}
+function recompute() {
+  space = baseSpace();
+  history = [space.length];
+  for (const e of ex) { space = space.filter(h => fits(h, e.o) === e.pos); history.push(space.length); }
+}
+let history = [256];
+
+// 會教的老師：挑一個讓剩餘假設被切得最平均的物件（資訊量最大）；隨便舉例：隨機
+function pickExample() {
+  const used = new Set(ex.map(e => e.o.join("")));
+  const cand = OBJS.filter(o => !used.has(o.join("")));
+  if ($("style").value === "rand") return cand[Math.floor(Math.random() * cand.length)];
+  let best = [], bs = -1;
+  for (const o of cand) {
+    const k = space.filter(h => fits(h, o)).length, s = Math.min(k, space.length - k);
+    if (s > bs) { bs = s; best = [o]; } else if (s === bs) best.push(o);
+  }
+  return best[Math.floor(Math.random() * best.length)];
+}
+function newPuzzle() {
+  word = WORDS[Math.floor(Math.random() * WORDS.length)];
+  const d = Math.floor(Math.random() * 4), v = Math.floor(Math.random() * 3);
+  target = [ANY, ANY, ANY, ANY]; target[d] = v;
+  // 第一次指認：隨機挑一組「是」的物件
+  const pos = OBJS.filter(o => fits(target, o));
+  ex = [{ o: pos[Math.floor(Math.random() * pos.length)], pos: true }];
+  guessed = null; $("msg").innerHTML = "";
+  recompute(); drawAll();
+}
+function nextExample() {
+  if (space.length <= 1) return;
+  const o = pickExample(); if (!o) return;
+  ex.push({ o, pos: fits(target, o) }); recompute(); drawAll();
+}
+
+// ---------- 版面 ----------
+const app = $("app"), cv = $("cv"), g = cv.getContext("2d"), ch = $("chart"), cx = ch.getContext("2d");
+function fit(c) {
+  const r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  c.width = Math.max(1, r.width * dpr | 0); c.height = Math.max(1, r.height * dpr | 0);
+  c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0); return { w: r.width, h: r.height };
+}
+let SW = 0, SH = 0, CW = 0, CH = 0, cells = [];
+function layout() {
+  app.classList.toggle("portrait", innerHeight > innerWidth * 1.05);
+  ({ w: SW, h: SH } = fit(cv)); ({ w: CW, h: CH } = fit(ch)); drawAll();
+}
+
+// 畫一組物件：顏色＝填色，形狀＝輪廓，數量＝個數，材質＝紋理
+function shapePath(x, y, r, s) {
+  g.beginPath();
+  if (s === 0) g.arc(x, y, r, 0, Math.PI * 2);
+  else if (s === 1) g.rect(x - r * .85, y - r * .85, r * 1.7, r * 1.7);
+  else { g.moveTo(x, y - r); g.lineTo(x + r * .95, y + r * .7); g.lineTo(x - r * .95, y + r * .7); g.closePath(); }
+}
+function drawItem(x, y, r, o) {
+  const col = COLS[o[0]];
+  g.save(); shapePath(x, y, r, o[1]);
+  if (o[3] === 2) {                    // 玻璃：半透明＋高光
+    g.globalAlpha = .28; g.fillStyle = col; g.fill(); g.globalAlpha = 1;
+    g.strokeStyle = col; g.lineWidth = 1.6; g.stroke();
+    g.clip(); g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = Math.max(1, r * .12);
+    g.beginPath(); g.moveTo(x - r * .6, y - r * .1); g.lineTo(x - r * .1, y - r * .6); g.stroke();
+  } else {
+    g.fillStyle = col; g.fill(); g.clip();
+    if (o[3] === 0) {                  // 木：年輪紋
+      g.strokeStyle = "rgba(40,22,10,.38)"; g.lineWidth = Math.max(.8, r * .07);
+      for (let k = -2; k <= 2; k++) { g.beginPath(); g.ellipse(x + r * .3, y + k * r * .38, r * 1.3, r * .22, .15, 0, Math.PI * 2); g.stroke(); }
+    } else {                           // 石：斑點（固定位置，不隨機）
+      g.fillStyle = "rgba(20,20,24,.38)";
+      for (let k = 0; k < 9; k++) { const a = k * 2.39996, d = r * .78 * Math.sqrt((k + .5) / 9); g.beginPath(); g.arc(x + d * Math.cos(a), y + d * Math.sin(a), Math.max(.8, r * .1), 0, 7); g.fill(); }
+    }
+  }
+  g.restore();
+}
+function drawGroup(x, y, w, h, o) {
+  const n = o[2] + 1, r = Math.min(w / (n * 2.5), h * .3);
+  for (let i = 0; i < n; i++) drawItem(x + w * (i + .5) / n, y + h * .5, r, o);
+}
+function roundRect(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+
+function drawStage() {
+  if (!SW) return;
+  g.clearRect(0, 0, SW, SH); cells = [];
+  if (mode === "pc") {
+    $("cap").innerHTML = ex.length ? `老師心裡有一個意思。每張卡是一個用例：<b>${word}</b>${$("cat").checked ? `（老師先說了：這個<b>${DIMS[target.findIndex(v => v !== ANY)].zh}</b>叫${word}）` : ""}` : "";
+    $("tag").textContent = "琥珀＝「這是」　鏽紅＝「這不是」";
+    const top = $("cap").offsetHeight + 12, list = ex.slice(-8), off = ex.length - list.length;
+    const L = list.length, cols = L <= 1 ? 1 : (L <= 4 || SW < 420) ? 2 : 4, rows = Math.max(1, Math.ceil(L / cols));
+    let cw = (SW - 16) / cols; const chh = Math.min((SH - top - 22) / Math.max(rows, L <= 1 ? 1 : 2), cw * .8);
+    cw = Math.min(cw, chh * 1.6); const x0 = (SW - cw * cols) / 2;
+    list.forEach((e, i) => {
+      const x = x0 + (i % cols) * cw, y = top + Math.floor(i / cols) * chh, k = off + i, last = k === ex.length - 1;
+      roundRect(x + 4, y + 4, cw - 8, chh - 8, 8);
+      g.fillStyle = last ? "rgba(227,154,78,.08)" : "rgba(255,255,255,.02)"; g.fill();
+      g.strokeStyle = e.pos ? C.amber : C.rust; g.globalAlpha = last ? 1 : .55; g.lineWidth = last ? 2 : 1; g.stroke(); g.globalAlpha = 1;
+      drawGroup(x + 10, y + 8, cw - 20, chh - 40, e.o);
+      g.font = `600 ${Math.max(11, Math.min(14, cw / 11))}px 'Noto Serif TC',serif`; g.textAlign = "center"; g.textBaseline = "alphabetic";
+      g.fillStyle = e.pos ? C.amber : C.rust;
+      const say = k === 0 ? `「這叫${word}」` : e.pos ? `「這也是${word}」` : `「這不是${word}」`;
+      g.fillText(`${k + 1}. ${say}`, x + cw / 2, y + chh - 14);
+      if (k === 0) {                         // 指示的手勢：一個箭頭
+        g.strokeStyle = C.txt; g.lineWidth = 2; g.beginPath(); g.moveTo(x + cw - 18, y + 14); g.lineTo(x + cw - 34, y + 30); g.stroke();
+        g.beginPath(); g.moveTo(x + cw - 34, y + 30); g.lineTo(x + cw - 33, y + 22); g.moveTo(x + cw - 34, y + 30); g.lineTo(x + cw - 26, y + 29); g.stroke();
+      }
+    });
+  } else {
+    $("cap").innerHTML = `點任一組物件當用例（程式依你心裡的意思自動說「是」或「不是」）。目標：<b>${hName(target)}</b>`;
+    $("tag").textContent = "9 × 9＝81 種物件組合";
+    const top = $("cap").offsetHeight + 10, n = 9, cs = Math.min((SW - 12) / n, (SH - top - 18) / n), x0 = (SW - cs * n) / 2;
+    const used = new Map(ex.map((e, i) => [e.o.join(""), e]));
+    OBJS.forEach((o, i) => {
+      const r = Math.floor(i / 9), c = i % 9, x = x0 + c * cs, y = top + r * cs, e = used.get(o.join(""));
+      cells.push({ x, y, s: cs, o });
+      g.fillStyle = e ? (e.pos ? "rgba(227,154,78,.16)" : "rgba(201,100,74,.16)") : "rgba(255,255,255,.015)";
+      g.fillRect(x + 1, y + 1, cs - 2, cs - 2);
+      if (e) { g.strokeStyle = e.pos ? C.amber : C.rust; g.lineWidth = 1.6; g.strokeRect(x + 1.5, y + 1.5, cs - 3, cs - 3); }
+      drawGroup(x + 2, y + cs * .1, cs - 4, cs * .8, o);
+    });
+  }
+}
+function drawChart() {
+  if (!CW) return;
+  cx.clearRect(0, 0, CW, CH);
+  const L = 30, B = CH - 16, T = 8, R = CW - 8, maxN = Math.max(6, history.length - 1);
+  const y = v => B - (B - T) * Math.log2(Math.max(1, v)) / 8;   // 1 … 256 → 0 … 8
+  cx.font = "10px 'JetBrains Mono',monospace"; cx.fillStyle = C.sub; cx.textAlign = "right"; cx.textBaseline = "middle";
+  [1, 4, 16, 64, 256].forEach(v => { cx.fillText(v, L - 4, y(v)); cx.strokeStyle = "rgba(237,230,214,.06)"; cx.beginPath(); cx.moveTo(L, y(v)); cx.lineTo(R, y(v)); cx.stroke(); });
+  const x = i => L + (R - L) * i / maxN;
+  cx.textAlign = "center"; cx.textBaseline = "alphabetic";
+  for (let i = 0; i <= maxN; i++) cx.fillText(i, x(i), CH - 3);
+  cx.strokeStyle = C.amber; cx.lineWidth = 2; cx.beginPath();
+  history.forEach((v, i) => i ? cx.lineTo(x(i), y(v)) : cx.moveTo(x(i), y(v))); cx.stroke();
+  history.forEach((v, i) => { cx.fillStyle = v === 1 ? C.moss : C.amber; cx.beginPath(); cx.arc(x(i), y(v), 3, 0, 7); cx.fill(); });
+}
+function drawSide() {
+  const n = space.length, cut = history.length > 1 ? history[history.length - 2] - n : 0;
+  $("rAll").textContent = history[0]; $("rLeft").textContent = n; $("rN").textContent = ex.length;
+  $("rCut").textContent = ex.length ? cut : "—";
+  $("wd1").textContent = word;
+  const tk = hKey(target);
+  const show = space.slice().sort((a, b) => a.filter(v => v === ANY).length - b.filter(v => v === ANY).length).reverse();
+  const reveal = mode === "me" || guessed !== null || n === 1;
+  $("hypTitle").textContent = n > 24 ? `還相容的假設（共 ${n} 種，列出前 24 種）` : `還相容的假設（共 ${n} 種）`;
+  $("hyps").innerHTML = show.slice(0, 24).map(h => `<span class="chip${reveal && hKey(h) === tk ? " tgt" : ""}">${hName(h)}</span>`).join("")
+    + (n === 0 ? `<span class="chip gone">沒有任何假設相容</span>` : "");
+  let t;
+  if (mode === "pc") {
+    if (ex.length === 1) t = $("cat").checked
+      ? `老師先說了類別詞，假設空間一開始就只有 ${history[0]} 種，一指之後剩 ${n} 種。快，是因為你早就懂「${DIMS[target.findIndex(v => v !== ANY)].zh}」這個詞怎麼用：位置事先預備好了（§29–§30）。可是「${DIMS[target.findIndex(v => v !== ANY)].zh}」又是怎麼學會的？`
+      : `只指了一次：256 種假設刪掉 ${256 - n} 種，還剩 ${n} 種。每個維度都可能是「就是這個值」或「不限」，這就是一指多解（§28）。`;
+    else if (n === 1) t = `只剩一種了：「${word}」＝${hName(space[0])}。用了 ${ex.length} 個用例。把意思釘住的不是第一次的指，而是後面那些「也是」「不是」的使用（§43）。`;
+    else t = `第 ${ex.length} 個用例刪掉 ${cut} 種。肯定用例刪掉「限定得太死」的理解；否定用例刪掉「放得太寬」的理解。`;
+  } else {
+    t = n === 1 ? `已經唯一確定：${hName(space[0])}，共用了 ${ex.length} 個用例。` : `你已經給了 ${ex.length} 個用例，還有 ${n} 種理解跟它們都相容。試試看：哪一個用例最能把它們分開？`;
+  }
+  $("explain").textContent = t;
+}
+function drawAll() { drawStage(); drawChart(); drawSide(); }
+
+// ---------- 猜測（電腦出題） ----------
+function buildGuess() {
+  $("guess").innerHTML = DIMS.map((d, i) => `<button data-d="${i}">${d.zh}</button>`).join("");
+}
+$("guess").addEventListener("click", e => {
+  const b = e.target.closest("[data-d]"); if (!b || mode !== "pc") return;
+  const d = +b.dataset.d, td = target.findIndex(v => v !== ANY);
+  guessed = d;
+  const alt = space.filter(h => hKey(h) !== hKey(target)).length;
+  $("msg").innerHTML = d === td
+    ? `<span class="ok">猜對了：「${word}」＝${hName(target)}。</span>` + (alt ? `不過用例目前還容許另外 ${alt} 種理解，這次猜對有一部分是運氣（或是你默默假定了「它應該只是一種顏色詞、形狀詞……」，那正是 §30 說的「位置預先預備好」）。` : "而且用例已經排除了其他所有理解。")
+    : `<span class="no">不是喔，答案是${hName(target)}。</span>` + (space.some(h => h[d] !== ANY) ? `你的理解和目前的用例並不衝突：用例還沒有把它刪掉。` : `其實目前的用例已經排除了「只看${DIMS[d].zh}」的理解。`);
+  drawSide();
+});
+
+// ---------- 你當老師 ----------
+function buildTargetSel() {
+  $("tsel").innerHTML = DIMS.map((d, i) => `<label>${d.zh}<select data-t="${i}"><option value="-1">不限</option>${d.vals.map((v, j) => `<option value="${j}">${v}</option>`).join("")}</select></label>`).join("");
+  [...$("tsel").querySelectorAll("select")].forEach(s => s.value = target[+s.dataset.t]);
+}
+$("tsel").addEventListener("change", e => {
+  const s = e.target.closest("[data-t]"); if (!s) return;
+  target[+s.dataset.t] = +s.value; ex = []; recompute(); computeMin(); drawAll();
+});
+// 最少用例數：暴力搜尋 1–3 個物件的所有組合；3 個不夠時，給出構造法並實際驗證
+function uniqueAfter(objs) {
+  let hs = HYPS;
+  for (const o of objs) { const p = fits(target, o); hs = hs.filter(h => fits(h, o) === p); if (hs.length === 0) break; }
+  return hs.length === 1;
+}
+function computeMin() {
+  const N = OBJS.length;
+  let found = 0;
+  outer: for (let k = 1; k <= 3; k++) {
+    if (k === 1) { for (let a = 0; a < N; a++) if (uniqueAfter([OBJS[a]])) { found = 1; break outer; } }
+    else if (k === 2) { for (let a = 0; a < N; a++) for (let b = a + 1; b < N; b++) if (uniqueAfter([OBJS[a], OBJS[b]])) { found = 2; break outer; } }
+    else { for (let a = 0; a < N; a++) for (let b = a + 1; b < N; b++) for (let c = b + 1; c < N; c++) if (uniqueAfter([OBJS[a], OBJS[b], OBJS[c]])) { found = 3; break outer; } }
+  }
+  if (found) { $("minInfo").textContent = `程式暴力搜尋 81 種物件的所有組合：最少要 ${found} 個用例才能唯一確定這個意思。`; return; }
+  // 構造：一個肯定用例＋（若有不限的維度）一個在所有不限維度都不同的肯定用例＋每個限定維度一個只差那一維的否定用例
+  const p0 = target.map(v => v === ANY ? 0 : v), set = [p0];
+  if (target.some(v => v === ANY)) set.push(target.map(v => v === ANY ? 1 : v));
+  target.forEach((v, i) => { if (v !== ANY) { const o = p0.slice(); o[i] = (v + 1) % 3; set.push(o); } });
+  $("minInfo").textContent = `程式已確認 3 個用例不夠；構造法用 ${set.length} 個可以做到（驗證：${uniqueAfter(set) ? "成立" : "不成立"}）。限定的維度越多，越需要「這不是」來說明哪些地方不能變。`;
+}
+cv.addEventListener("click", e => {
+  if (mode !== "me") return;
+  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const c = cells.find(c => x >= c.x && x < c.x + c.s && y >= c.y && y < c.y + c.s); if (!c) return;
+  const k = c.o.join(""), i = ex.findIndex(e => e.o.join("") === k);
+  if (i >= 0) ex.splice(i, 1); else ex.push({ o: c.o, pos: fits(target, c.o) });
+  recompute(); drawAll();
+});
+
+// ---------- 控制 ----------
+function setMode(m) {
+  mode = m;
+  $("guessSec").hidden = m !== "pc"; $("tgtSec").hidden = m !== "me";
+  $("lStyle").style.display = m === "pc" ? "" : "none";
+  $("bNext").disabled = m !== "pc"; $("cat").disabled = m !== "pc";
+  if (m === "me") { $("cat").checked = false; target = [ANY, ANY, 1, ANY]; ex = []; buildTargetSel(); recompute(); computeMin(); drawAll(); }
+  else newPuzzle();
+}
+$("mode").onchange = e => setMode(e.target.value);
+$("bNew").onclick = () => mode === "pc" ? newPuzzle() : (ex = [], recompute(), drawAll());
+$("bNext").onclick = nextExample;
+$("bUndo").onclick = () => { if (ex.length > (mode === "pc" ? 1 : 0)) { ex.pop(); recompute(); drawAll(); } };
+$("cat").onchange = () => { recompute(); drawAll(); };
+
+buildGuess(); setMode("pc");
+new ResizeObserver(layout).observe(document.body);
+})();
+</script>
+</body>
+</html>
