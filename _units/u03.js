@@ -88,7 +88,7 @@
 </ul>` },
     { h: "〔延伸閱讀〕",
       b: `<ul>
-<li>Wittgenstein, <i>The Blue and Brown Books</i>：藍皮書 p.17 第一次用「語言遊戲」；棕皮書 p.77 起是一連串編號的語言遊戲。</li>
+<li>Wittgenstein, <i>The Blue and Brown Books</i>：藍皮書 p.17 是第一次對學生正式介紹「語言遊戲」（1932 年的手稿已出現這個詞）；棕皮書 p.77 起是一連串編號的語言遊戲。</li>
 <li>Baker &amp; Hacker, <i>Wittgenstein: Understanding and Meaning</i> 第一卷：專論 III〈The language-game method〉、IV〈Descriptions and the uses of sentences〉。</li>
 <li>雷伊．孟克《天才的責任》ch. 16〈語言遊戲：《藍皮書》與《棕皮書》〉。</li>
 <li>Stanford Encyclopedia of Philosophy：〈Ludwig Wittgenstein〉 <a href="https://plato.stanford.edu/entries/wittgenstein/" target="_blank" rel="noopener">連結</a></li>

@@ -67,7 +67,7 @@ window.PI_SECTIONS = [
   "zh": "這個語言是用來讓建築工人 A 和助手 B 互相溝通的。",
   "de": "Die Sprache soll der Verständigung eines Bauenden A mit einem Gehilfen B dienen.",
   "en": "The language is meant to let a builder A communicate with an assistant B.",
-  "gist": "設想一種只有「方塊、柱子、板子、樑」四個詞的語言：A 喊，B 搬，這就是完整的語言。"
+  "gist": "設想一種只有「方石、柱石、石板、石樑」四個詞的語言：A 喊，B 搬；維根斯坦要我們把它想成一種完整的原始語言。"
  },
  {
   "k": "3",
